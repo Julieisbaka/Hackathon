@@ -6,7 +6,7 @@
   },
   "displayName": "Math Script",
   "description": "Language support for the MS language (lexer-based highlighting, run via MS interpreter).",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "JulieISBaka",
   "engines": {
     "vscode": "^1.85.0"
