@@ -7,178 +7,178 @@ pub struct Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    Identifier,
-    Number,
-    String,
-    DocString,
-    Assign,         // =
-    Plus,           // +
-    Minus,          // -
-    Star,           // *
-    Slash,          // /
-    Caret,          // ^
-    Bang,           // ! (prefix not or postfix factorial)
-    LParen,         // (
-    RParen,         // )
-    LBrace,         // {
-    RBrace,         // }
-    LBracket,       // [
-    RBracket,       // ]
-    Comma,          // ,
-    Pipe,           // |
-    Prime,          // '
-    Colon,          // :
-    Greater,        // >
-    Less,           // <
-    GreaterEq,      // >=
-    LessEq,         // <=
-    Equal,          // ==
-    NotEqual,       // !=
-    EOF,
-    Unknown,
+    Identifier = 0,
+    Number = 1,
+    String = 2,
+    DocString = 3,
+    Assign = 4,         // =
+    Plus = 5,           // +
+    Minus = 6,          // -
+    Star = 7,           // *
+    Slash = 8,          // /
+    Caret = 9,          // ^
+    Bang = 10,           // ! (prefix not or postfix factorial)
+    LParen = 11,         // (
+    RParen = 12,         // )
+    LBrace = 13,         // {
+    RBrace = 14,         // }
+    LBracket = 15,       // [
+    RBracket = 16,       // ]
+    Comma = 17,          // ,
+    Pipe = 18,           // |
+    Prime = 19,          // '
+    Colon = 20,          // :
+    Greater = 21,        // >
+    Less = 22,           // <
+    GreaterEq = 23,      // >=
+    LessEq = 24,         // <=
+    Equal = 25,          // ==
+    NotEqual = 26,       // !=
+    EOF = 27,
+    Unknown = 28,
 }
 
 pub fn tokenize(input: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    let mut chars = input.chars().peekable();
-    while let Some(&c) = chars.peek() {
+    let mut tokens: Vec<Token> = Vec::new();
+    let mut chars: std::iter::Peekable<std::str::Chars<'_>> = input.chars().peekable();
+    while let Some(&c) = (&mut chars).peek() {
         if c.is_whitespace() {
-            chars.next();
+            (&mut chars).next();
         } else if c == '#' {
             // comment to end of line
-            while let Some(ch) = chars.next() { if ch == '\n' { break; } }
-        } else if c.is_ascii_digit() || (c == '.' && chars.clone().nth(1).map_or(false, |n| n.is_ascii_digit())) {
+            while let Some(ch) = (&mut chars).next() { if ch == '\n' { break; } }
+        } else if (&c).is_ascii_digit() || (c == '.' && (&mut (&chars).clone()).nth(1).map_or(false, |n: char| (&n).is_ascii_digit())) {
             // Number (integer or float)
-            let mut num = String::new();
-            let mut dot_seen = false;
-            while let Some(&d) = chars.peek() {
-                if d.is_ascii_digit() {
-                    num.push(d);
-                    chars.next();
+            let mut num: String = String::new();
+            let mut dot_seen: bool = false;
+            while let Some(&d) = (&mut chars).peek() {
+                if (&d).is_ascii_digit() {
+                    (&mut num).push(d);
+                    (&mut chars).next();
                 } else if d == '.' && !dot_seen {
                     dot_seen = true;
-                    num.push(d);
-                    chars.next();
+                    (&mut num).push(d);
+                    (&mut chars).next();
                 } else {
                     break;
                 }
             }
-            tokens.push(Token { kind: TokenKind::Number, lexeme: num });
+            (&mut tokens).push(Token { kind: TokenKind::Number, lexeme: num });
         } else if c == '"' {
             // String or DocString
             // Check for triple quotes
-            let mut clone = chars.clone();
-            clone.next();
-            let second = clone.peek().copied();
-            let third = if second.is_some() { clone.clone().nth(1) } else { None };
+            let mut clone: std::iter::Peekable<std::str::Chars<'_>> = (&chars).clone();
+            (&mut clone).next();
+            let second: Option<char> = (&mut clone).peek().copied();
+            let third: Option<char> = if (&second).is_some() { (&mut (&clone).clone()).nth(1) } else { None };
             if second == Some('"') && third == Some('"') {
                 // DocString
-                chars.next(); chars.next(); chars.next(); // consume """
-                let mut buf = String::new();
+                (&mut chars).next(); (&mut chars).next(); (&mut chars).next(); // consume """
+                let mut buf: String = String::new();
                 loop {
-                    if let Some(&ch) = chars.peek() {
+                    if let Some(&ch) = (&mut chars).peek() {
                         if ch == '"' {
-                            let mut look = chars.clone();
-                            look.next();
-                            if look.peek().copied() == Some('"') && look.clone().nth(1) == Some('"') {
+                            let mut look: std::iter::Peekable<std::str::Chars<'_>> = (&chars).clone();
+                            (&mut look).next();
+                            if (&mut look).peek().copied() == Some('"') && (&mut (&look).clone()).nth(1) == Some('"') {
                                 // end
-                                chars.next(); chars.next(); chars.next();
+                                (&mut chars).next(); (&mut chars).next(); (&mut chars).next();
                                 break;
                             }
                         }
-                        buf.push(ch);
-                        chars.next();
+                        (&mut buf).push(ch);
+                        (&mut chars).next();
                     } else { break; }
                 }
-                tokens.push(Token { kind: TokenKind::DocString, lexeme: buf });
+                (&mut tokens).push(Token { kind: TokenKind::DocString, lexeme: buf });
             } else {
                 // normal string
-                chars.next(); // consume opening
-                let mut buf = String::new();
-                while let Some(ch) = chars.next() {
+                (&mut chars).next(); // consume opening
+                let mut buf: String = String::new();
+                while let Some(ch) = (&mut chars).next() {
                     if ch == '"' { break; }
                     if ch == '\\' {
-                        if let Some(esc) = chars.next() { buf.push(esc); } else { break; }
+                        if let Some(esc) = (&mut chars).next() { (&mut buf).push(esc); } else { break; }
                     } else {
-                        buf.push(ch);
+                        (&mut buf).push(ch);
                     }
                 }
-                tokens.push(Token { kind: TokenKind::String, lexeme: buf });
+                (&mut tokens).push(Token { kind: TokenKind::String, lexeme: buf });
             }
         } else if c.is_ascii_alphabetic() || c == '_' {
             // Identifier or keyword
-            let mut ident = String::new();
-            while let Some(&d) = chars.peek() {
-                if d.is_ascii_alphanumeric() || d == '_' {
-                    ident.push(d);
-                    chars.next();
+            let mut ident: String = String::new();
+            while let Some(&d) = (&mut chars).peek() {
+                if (&d).is_ascii_alphanumeric() || d == '_' {
+                    (&mut ident).push(d);
+                    (&mut chars).next();
                 } else {
                     break;
                 }
             }
             // TODO: Check for keywords, functions, constants
-            tokens.push(Token { kind: TokenKind::Identifier, lexeme: ident });
+            (&mut tokens).push(Token { kind: TokenKind::Identifier, lexeme: ident });
         } else {
             // Single- and multi-character tokens and operators
             match c {
                 '=' => {
-                    chars.next();
-                    if let Some('=') = chars.peek().copied() {
-                        chars.next();
-                        tokens.push(Token { kind: TokenKind::Equal, lexeme: "==".to_string() });
+                    (&mut chars).next();
+                    if let Some('=') = (&mut chars).peek().copied() {
+                        (&mut chars).next();
+                        (&mut tokens).push(Token { kind: TokenKind::Equal, lexeme: "==".to_string() });
                     } else {
-                        tokens.push(Token { kind: TokenKind::Assign, lexeme: "=".to_string() });
+                        (&mut tokens).push(Token { kind: TokenKind::Assign, lexeme: "=".to_string() });
                     }
                 }
                 '!' => {
-                    chars.next();
-                    if let Some('=') = chars.peek().copied() {
-                        chars.next();
-                        tokens.push(Token { kind: TokenKind::NotEqual, lexeme: "!=".to_string() });
+                    (&mut chars).next();
+                    if let Some('=') = (&mut chars).peek().copied() {
+                        (&mut chars).next();
+                        (&mut tokens).push(Token { kind: TokenKind::NotEqual, lexeme: "!=".to_string() });
                     } else {
-                        tokens.push(Token { kind: TokenKind::Bang, lexeme: "!".to_string() });
+                        (&mut tokens).push(Token { kind: TokenKind::Bang, lexeme: "!".to_string() });
                     }
                 }
                 '>' => {
-                    chars.next();
-                    if let Some('=') = chars.peek().copied() {
-                        chars.next();
-                        tokens.push(Token { kind: TokenKind::GreaterEq, lexeme: ">=".to_string() });
+                    (&mut chars).next();
+                    if let Some('=') = (&mut chars).peek().copied() {
+                        (&mut chars).next();
+                        (&mut tokens).push(Token { kind: TokenKind::GreaterEq, lexeme: ">=".to_string() });
                     } else {
-                        tokens.push(Token { kind: TokenKind::Greater, lexeme: ">".to_string() });
+                        (&mut tokens).push(Token { kind: TokenKind::Greater, lexeme: ">".to_string() });
                     }
                 }
                 '<' => {
-                    chars.next();
-                    if let Some('=') = chars.peek().copied() {
-                        chars.next();
-                        tokens.push(Token { kind: TokenKind::LessEq, lexeme: "<=".to_string() });
+                    (&mut chars).next();
+                    if let Some('=') = (&mut chars).peek().copied() {
+                        (&mut chars).next();
+                        (&mut tokens).push(Token { kind: TokenKind::LessEq, lexeme: "<=".to_string() });
                     } else {
-                        tokens.push(Token { kind: TokenKind::Less, lexeme: "<".to_string() });
+                        (&mut tokens).push(Token { kind: TokenKind::Less, lexeme: "<".to_string() });
                     }
                 }
-                '+' => { chars.next(); tokens.push(Token { kind: TokenKind::Plus, lexeme: "+".to_string() }); }
-                '-' => { chars.next(); tokens.push(Token { kind: TokenKind::Minus, lexeme: "-".to_string() }); }
-                '*' => { chars.next(); tokens.push(Token { kind: TokenKind::Star, lexeme: "*".to_string() }); }
-                '/' => { chars.next(); tokens.push(Token { kind: TokenKind::Slash, lexeme: "/".to_string() }); }
-                '^' => { chars.next(); tokens.push(Token { kind: TokenKind::Caret, lexeme: "^".to_string() }); }
-                '(' => { chars.next(); tokens.push(Token { kind: TokenKind::LParen, lexeme: "(".to_string() }); }
-                ')' => { chars.next(); tokens.push(Token { kind: TokenKind::RParen, lexeme: ")".to_string() }); }
-                '{' => { chars.next(); tokens.push(Token { kind: TokenKind::LBrace, lexeme: "{".to_string() }); }
-                '}' => { chars.next(); tokens.push(Token { kind: TokenKind::RBrace, lexeme: "}".to_string() }); }
-                '[' => { chars.next(); tokens.push(Token { kind: TokenKind::LBracket, lexeme: "[".to_string() }); }
-                ']' => { chars.next(); tokens.push(Token { kind: TokenKind::RBracket, lexeme: "]".to_string() }); }
-                ',' => { chars.next(); tokens.push(Token { kind: TokenKind::Comma, lexeme: ",".to_string() }); }
-                '|' => { chars.next(); tokens.push(Token { kind: TokenKind::Pipe, lexeme: "|".to_string() }); }
-                '\'' => { chars.next(); tokens.push(Token { kind: TokenKind::Prime, lexeme: "'".to_string() }); }
-                ':' => { chars.next(); tokens.push(Token { kind: TokenKind::Colon, lexeme: ":".to_string() }); }
+                '+' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Plus, lexeme: "+".to_string() }); }
+                '-' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Minus, lexeme: "-".to_string() }); }
+                '*' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Star, lexeme: "*".to_string() }); }
+                '/' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Slash, lexeme: "/".to_string() }); }
+                '^' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Caret, lexeme: "^".to_string() }); }
+                '(' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::LParen, lexeme: "(".to_string() }); }
+                ')' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::RParen, lexeme: ")".to_string() }); }
+                '{' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::LBrace, lexeme: "{".to_string() }); }
+                '}' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::RBrace, lexeme: "}".to_string() }); }
+                '[' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::LBracket, lexeme: "[".to_string() }); }
+                ']' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::RBracket, lexeme: "]".to_string() }); }
+                ',' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Comma, lexeme: ",".to_string() }); }
+                '|' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Pipe, lexeme: "|".to_string() }); }
+                '\'' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Prime, lexeme: "'".to_string() }); }
+                ':' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Colon, lexeme: ":".to_string() }); }
                 _ => {
-                    tokens.push(Token { kind: TokenKind::Unknown, lexeme: c.to_string() });
-                    chars.next();
+                    (&mut tokens).push(Token { kind: TokenKind::Unknown, lexeme: (&c).to_string() });
+                    (&mut chars).next();
                 }
             }
         }
     }
-    tokens.push(Token { kind: TokenKind::EOF, lexeme: String::new() });
+    (&mut tokens).push(Token { kind: TokenKind::EOF, lexeme: String::new() });
     tokens
 }

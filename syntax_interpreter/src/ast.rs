@@ -52,23 +52,23 @@ pub enum AstNode {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnaryOpKind {
-    Negate,
-    Factorial,
-    Abs,
-    Not,
+    Negate = 0,
+    Factorial = 1,
+    Abs = 2,
+    Not = 3,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOpKind {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Pow,
-    Eq,
-    NotEq,
-    Gt,
-    Lt,
-    Gte,
-    Lte,
+    Add = 0,
+    Sub = 1,
+    Mul = 2,
+    Div = 3,
+    Pow = 4,
+    Eq = 5,
+    NotEq = 6,
+    Gt = 7,
+    Lt = 8,
+    Gte = 9,
+    Lte = 10,
 }

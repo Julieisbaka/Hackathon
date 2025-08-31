@@ -5,8 +5,8 @@ use crate::lexer::{Token, TokenKind};
 use crate::ast::{AstNode, UnaryOpKind, BinaryOpKind};
 
 pub fn parse(tokens: &[Token]) -> AstNode {
-    let mut parser = Parser::new(tokens);
-    let result = match parser.parse_statement() {
+    let mut parser: Parser<'_> = Parser::new(tokens);
+    let result: AstNode = match (&mut parser).parse_statement() {
         Some(expr) => expr,
         None => AstNode::Empty,
     };
@@ -20,7 +20,7 @@ struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     fn lookahead_kind(&self, n: usize) -> Option<&TokenKind> {
-        self.tokens.get(self.pos + n).map(|t| &t.kind)
+        (*self).tokens.get((*self).pos + n).map(|t: &Token| -> &TokenKind { &(*t).kind })
     }
 
     fn parse_statement(&mut self) -> Option<AstNode> {
@@ -32,7 +32,7 @@ impl<'a> Parser<'a> {
                 self.next();
                 match self.peek() {
                     Some(Token { kind: TokenKind::String, lexeme: path }) => {
-                        let p = path.clone();
+                        let p: String = path.clone();
                         self.next();
                         return Some(AstNode::Import(p));
                     }
@@ -42,32 +42,32 @@ impl<'a> Parser<'a> {
             if lexeme == "print" {
                 self.next();
                 self.expect(TokenKind::LParen)?;
-                let args = self.parse_arg_list()?;
+                let args: Vec<AstNode> = self.parse_arg_list()?;
                 return Some(AstNode::Print(args));
             }
             if lexeme == "log" {
                 self.next();
                 self.expect(TokenKind::LParen)?;
-                let args = self.parse_arg_list()?;
+                let args: Vec<AstNode> = self.parse_arg_list()?;
                 return Some(AstNode::Log(args));
             }
         }
         if let Some(Token { kind: TokenKind::Identifier, lexeme }) = self.peek() {
-            let name = lexeme.clone();
+            let name: String = lexeme.clone();
             // function def pattern
             if matches!(self.lookahead_kind(1), Some(TokenKind::LParen)) {
                 self.next(); // name
                 self.next(); // (
-                let params = self.parse_params()?;
+                let params: Vec<String> = self.parse_params()?;
                 self.expect(TokenKind::Assign)?;
-                let expr = self.parse_expression(0)?;
+                let expr: AstNode = self.parse_expression(0)?;
                 return Some(AstNode::FunctionDef { name, params, body: Box::new(expr) });
             }
             // assignment pattern
             if matches!(self.lookahead_kind(1), Some(TokenKind::Assign)) {
                 self.next(); // name
                 self.next(); // =
-                let expr = self.parse_expression(0)?;
+                let expr: AstNode = self.parse_expression(0)?;
                 return Some(AstNode::Assignment { name, expr: Box::new(expr) });
             }
         }
@@ -76,14 +76,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_params(&mut self) -> Option<Vec<String>> {
-        let mut params = Vec::new();
+        let mut params: Vec<String> = Vec::new();
         if self.match_kind(TokenKind::RParen) { return Some(params); }
         loop {
             match self.peek() {
                 Some(Token { kind: TokenKind::Identifier, lexeme }) => {
-                    let p = lexeme.clone();
+                    let p: String = lexeme.clone();
                     self.next();
-                    params.push(p);
+                    (&mut params).push(p);
                 }
                 _ => return None,
             }
@@ -98,24 +98,24 @@ impl<'a> Parser<'a> {
     }
 
     fn peek(&self) -> Option<&Token> {
-        self.tokens.get(self.pos)
+        (*self).tokens.get((*self).pos)
     }
 
     fn next(&mut self) -> Option<&Token> {
-        let tok = self.tokens.get(self.pos);
-        if tok.is_some() {
-            self.pos += 1;
+        let tok: Option<&Token> = (*self).tokens.get((*self).pos);
+        if (&tok).is_some() {
+            (*self).pos += 1;
         }
         tok
     }
 
     fn parse_expression(&mut self, min_bp: u8) -> Option<AstNode> {
-        let mut lhs = self.parse_prefix()?;
+        let mut lhs: AstNode = self.parse_prefix()?;
         lhs = self.parse_postfix(lhs)?;
 
         loop {
-            let op = match self.peek() {
-                Some(t) => t.kind.clone(),
+            let op: TokenKind = match self.peek() {
+                Some(t) => (&(*t).kind).clone(),
                 None => break,
             };
 
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
 
             if lbp < min_bp { break; }
             self.next();
-            let rhs = self.parse_expression(rbp)?;
+            let rhs: AstNode = self.parse_expression(rbp)?;
             lhs = AstNode::BinaryOp { op: bop.unwrap(), left: Box::new(lhs), right: Box::new(rhs) };
         }
 
@@ -152,7 +152,7 @@ impl<'a> Parser<'a> {
                 let mut order = 1usize;
                 if self.match_kind(TokenKind::Caret) {
                     if let Some(Token { kind: TokenKind::Number, lexeme }) = self.peek() {
-                        if let Ok(n) = lexeme.parse::<usize>() { order = n; }
+                        if let Ok(n) = (&**lexeme).parse::<usize>() { order = n; }
                         self.next();
                     } else { return None; }
                 }
@@ -161,8 +161,8 @@ impl<'a> Parser<'a> {
                 if let Some(Token { kind: TokenKind::Identifier, lexeme }) = self.peek() {
                     if lexeme == "d" {
                         self.next(); // 'd'
-                        let var = if let Some(Token { kind: TokenKind::Identifier, lexeme }) = self.peek() {
-                            let v = lexeme.clone();
+                        let var: String = if let Some(Token { kind: TokenKind::Identifier, lexeme }) = self.peek() {
+                            let v: String = lexeme.clone();
                             self.next();
                             v
                         } else { return None };
@@ -171,8 +171,8 @@ impl<'a> Parser<'a> {
                             if let Some(Token { kind: TokenKind::Number, .. }) = self.peek() { self.next(); }
                         }
                         // target expression, parentheses optional
-                        let expr = if self.match_kind(TokenKind::LParen) {
-                            let e = self.parse_expression(0)?;
+                        let expr: AstNode = if self.match_kind(TokenKind::LParen) {
+                            let e: AstNode = self.parse_expression(0)?;
                             self.expect(TokenKind::RParen)?;
                             e
                         } else {
@@ -184,30 +184,30 @@ impl<'a> Parser<'a> {
                 return None;
             }
         }
-        match self.peek()?.kind {
+        match (*self.peek()?).kind {
             TokenKind::Number => {
-                let tok = self.next()?;
-                let v = tok.lexeme.parse::<f64>().ok()?;
+                let tok: &Token = self.next()?;
+                let v: f64 = (&*(*tok).lexeme).parse::<f64>().ok()?;
                 Some(AstNode::Number(v))
             }
             TokenKind::String => {
-                let tok = self.next()?;
-                Some(AstNode::Str(tok.lexeme.clone()))
+                let tok: &Token = self.next()?;
+                Some(AstNode::Str((&(*tok).lexeme).clone()))
             }
             TokenKind::Identifier => {
                 // function call or variable
-                let mut name = self.next()?.lexeme.clone();
+                let mut name: String = (&(*self.next()?).lexeme).clone();
                 // inverse marker name^-1(...)
-                let mut inverse = false;
+                let mut inverse: bool = false;
                 if self.match_inverse_marker() { inverse = true; }
                 // prime markers name' ' '
                 let mut prime_order = 0usize;
                 while self.match_kind(TokenKind::Prime) { prime_order += 1; }
                 // bracket derivative order name[5]'
-                let mut bracket_order = None;
+                let mut bracket_order: Option<usize> = None;
                 if self.match_kind(TokenKind::LBracket) {
                     if let Some(Token { kind: TokenKind::Number, lexeme }) = self.peek() {
-                        let k = lexeme.parse::<usize>().ok()?;
+                        let k = (&**lexeme).parse::<usize>().ok()?;
                         self.next();
                         self.expect(TokenKind::RBracket)?;
                         if self.match_kind(TokenKind::Prime) { bracket_order = Some(k); }
@@ -216,8 +216,8 @@ impl<'a> Parser<'a> {
                     }
                 }
                 if self.match_kind(TokenKind::LParen) {
-                    let args = self.parse_arg_list()?;
-                    if inverse { name = inverse_name(&name); }
+                    let args: Vec<AstNode> = self.parse_arg_list()?;
+                    if inverse { name = inverse_name(&**&name); }
                     let total_order = bracket_order.unwrap_or(0) + prime_order;
                     if total_order > 0 {
                         Some(AstNode::DerivativeCall { name, args, var: None, order: total_order })
@@ -225,7 +225,7 @@ impl<'a> Parser<'a> {
                         Some(AstNode::FunctionCall { name, args })
                     }
                 } else {
-                    if inverse { name = inverse_name(&name); }
+                    if inverse { name = inverse_name(&**&name); }
                     Some(AstNode::Variable(name))
                 }
             }
@@ -237,27 +237,27 @@ impl<'a> Parser<'a> {
             }
             TokenKind::LParen => {
                 self.next();
-                let expr = self.parse_expression(0)?;
+                let expr: AstNode = self.parse_expression(0)?;
                 self.expect(TokenKind::RParen)?;
                 Some(expr)
             }
             TokenKind::Pipe => {
                 // |expr|
                 self.next();
-                let inner = self.parse_expression(0)?;
+                let inner: AstNode = self.parse_expression(0)?;
                 self.expect(TokenKind::Pipe)?;
                 Some(AstNode::UnaryOp { op: UnaryOpKind::Abs, expr: Box::new(inner) })
             }
             TokenKind::LBracket => {
                 // [a, b, c]
                 self.next();
-                let mut items = Vec::new();
+                let mut items: Vec<AstNode> = Vec::new();
                 if self.match_kind(TokenKind::RBracket) {
                     return Some(AstNode::Array(items));
                 }
                 loop {
-                    let expr = self.parse_expression(0)?;
-                    items.push(expr);
+                    let expr: AstNode = self.parse_expression(0)?;
+                    (&mut items).push(expr);
                     if self.match_kind(TokenKind::Comma) { continue; }
                     self.expect(TokenKind::RBracket)?;
                     break;
@@ -266,7 +266,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Minus => {
                 self.next();
-                let expr = self.parse_expression(6)?;
+                let expr: AstNode = self.parse_expression(6)?;
                 Some(AstNode::UnaryOp { op: UnaryOpKind::Negate, expr: Box::new(expr) })
             }
             _ => None,
@@ -275,7 +275,7 @@ impl<'a> Parser<'a> {
 
     fn parse_postfix(&mut self, mut lhs: AstNode) -> Option<AstNode> {
         loop {
-            match self.peek().map(|t| t.kind.clone()) {
+            match self.peek().map(|t: &Token| -> TokenKind { (&(*t).kind).clone() }) {
                 Some(TokenKind::Bang) => {
                     self.next();
                     lhs = AstNode::UnaryOp { op: UnaryOpKind::Factorial, expr: Box::new(lhs) };
@@ -291,7 +291,7 @@ impl<'a> Parser<'a> {
                 }
                 Some(TokenKind::LBrace) => {
                     self.next();
-                    let cond = self.parse_condition_expression(0)?;
+                    let cond: AstNode = self.parse_condition_expression(0)?;
                     self.expect(TokenKind::RBrace)?;
                     lhs = AstNode::Conditional { condition: Box::new(cond), body: Box::new(lhs) };
                 }
@@ -303,9 +303,9 @@ impl<'a> Parser<'a> {
 
     fn parse_condition_expression(&mut self, min_bp: u8) -> Option<AstNode> {
         // same as parse_expression, but treat '=' as equality
-        let mut lhs = self.parse_prefix()?;
+        let mut lhs: AstNode = self.parse_prefix()?;
         loop {
-            let op = match self.peek() { Some(t) => t.kind.clone(), None => break };
+            let op: TokenKind = match self.peek() { Some(t) => (&(*t).kind).clone(), None => break };
             let (lbp, rbp, bop) = match op {
                 TokenKind::Caret => (7, 6, Some(BinaryOpKind::Pow)),
                 TokenKind::Star => (5, 6, Some(BinaryOpKind::Mul)),
@@ -323,20 +323,20 @@ impl<'a> Parser<'a> {
             };
             if lbp < min_bp { break; }
             self.next();
-            let rhs = self.parse_condition_expression(rbp)?;
+            let rhs: AstNode = self.parse_condition_expression(rbp)?;
             lhs = AstNode::BinaryOp { op: bop.unwrap(), left: Box::new(lhs), right: Box::new(rhs) };
         }
         Some(lhs)
     }
 
     fn parse_arg_list(&mut self) -> Option<Vec<AstNode>> {
-        let mut args = Vec::new();
+        let mut args: Vec<AstNode> = Vec::new();
         if self.match_kind(TokenKind::RParen) {
             return Some(args);
         }
         loop {
-            let expr = self.parse_expression(0)?;
-            args.push(expr);
+            let expr: AstNode = self.parse_expression(0)?;
+            (&mut args).push(expr);
             if self.match_kind(TokenKind::Comma) { continue; }
             self.expect(TokenKind::RParen)?;
             break;
@@ -346,7 +346,7 @@ impl<'a> Parser<'a> {
 
     fn match_kind(&mut self, kind: TokenKind) -> bool {
         if let Some(tok) = self.peek() {
-            if tok.kind == kind { self.next(); return true; }
+            if (*tok).kind == kind { self.next(); return true; }
         }
         false
     }
@@ -367,7 +367,7 @@ impl<'a> Parser<'a> {
             self.next(); // -
             // number token must be "1"
             if let Some(tok) = self.next() {
-                if tok.lexeme == "1" { return true; }
+                if (*tok).lexeme == "1" { return true; }
             }
             return false;
         }

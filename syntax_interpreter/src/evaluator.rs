@@ -28,16 +28,16 @@ pub struct Env {
 impl Env {
     pub fn new() -> Self { Self { vars: HashMap::new(), funcs: HashMap::new() } }
     pub fn with_builtins() -> Self {
-        let mut env = Self::new();
+        let mut env: Env = Self::new();
     // constants
-    env.vars.insert("e".to_string(), Value::Number(std::f64::consts::E));
-    env.vars.insert("pi".to_string(), Value::Number(std::f64::consts::PI));
+    (&mut env.vars).insert("e".to_string(), Value::Number(std::f64::consts::E));
+    (&mut env.vars).insert("pi".to_string(), Value::Number(std::f64::consts::PI));
     // i: 1D imaginary unit (standard complex)
-    env.vars.insert("i".to_string(), Value::Complex(Complex64::new(0.0, 1.0)));
+    (&mut env.vars).insert("i".to_string(), Value::Complex(Complex64::new(0.0, 1.0)));
     // j: 2D imaginary unit (distinct from i)
-    env.vars.insert("j".to_string(), Value::Complex(Complex64::new(0.0, 2.0)));
+    (&mut env.vars).insert("j".to_string(), Value::Complex(Complex64::new(0.0, 2.0)));
     // k: 3D imaginary unit (distinct from i, j)
-    env.vars.insert("k".to_string(), Value::Complex(Complex64::new(0.0, 3.0)));
+    (&mut env.vars).insert("k".to_string(), Value::Complex(Complex64::new(0.0, 3.0)));
     env
     }
 }
@@ -48,24 +48,24 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
         AstNode::Number(n) => Value::Number(*n),
     AstNode::Str(s) => Value::Str(s.clone()),
         AstNode::Constant(name) => {
-            match env.vars.get(name) {
+            match (&(*env).vars).get(name) {
                 Some(val) => val.clone(),
                 None => Value::Str(format!("ERROR: constant '{}' does not exist", name)),
             }
         },
         AstNode::Variable(name) => {
-            match env.vars.get(name) {
+            match (&(*env).vars).get(name) {
                 Some(val) => val.clone(),
                 None => Value::Str(format!("ERROR: variable '{}' does not exist", name)),
             }
         },
         AstNode::Assignment { name, expr } => {
-            let val = eval(expr, env);
-            env.vars.insert(name.clone(), val.clone());
+            let val: Value = eval(expr, env);
+            (&mut (*env).vars).insert(name.clone(), (&val).clone());
             val
         }
         AstNode::UnaryOp { op, expr } => {
-            let v = eval(expr, env);
+            let v: Value = eval(expr, env);
             match op {
                 UnaryOpKind::Negate => num_neg(v),
                 UnaryOpKind::Not => bool_not(v),
@@ -74,8 +74,8 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
             }
         }
         AstNode::BinaryOp { op, left, right } => {
-            let l = eval(left, env);
-            let r = eval(right, env);
+            let l: Value = eval(left, env);
+            let r: Value = eval(right, env);
             match op {
                 BinaryOpKind::Add => lift_bin(l, r, |x,y| x+y),
                 BinaryOpKind::Sub => lift_bin(l, r, |x,y| x-y),
@@ -86,36 +86,36 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
                     compare(op.clone(), l, r),
             }
         }
-        AstNode::Array(items) => Value::Array(items.iter().map(|e| eval(e, env)).collect()),
+        AstNode::Array(items) => Value::Array((&**items).iter().map(|e: &AstNode| -> Value { eval(e, env) }).collect()),
         AstNode::FunctionDef { name, params, body } => {
-            let f = Function { params: params.clone(), body: (*body.clone()) };
-            env.funcs.insert(name.clone(), f.clone());
+            let f: Function = Function { params: params.clone(), body: (*body.clone()) };
+            (&mut (*env).funcs).insert(name.clone(), (&f).clone());
             Value::Function(f)
         }
         AstNode::FunctionCall { name, args } => {
-            let argv: Vec<Value> = args.iter().map(|a| eval(a, env)).collect();
-            call_function(name, &argv, env)
+            let argv: Vec<Value> = (&**args).iter().map(|a: &AstNode| -> Value { eval(a, env) }).collect();
+            call_function(&**name, &**&argv, env)
         }
         AstNode::Import(path) => {
             // simple import: read file as lines and evaluate each line in current env
             if let Ok(content) = std::fs::read_to_string(path) {
-                for line in content.lines() {
-                    let tokens = crate::lexer::tokenize(line);
-                    let ast = crate::parser::parse(&tokens);
+                for line in (&*content).lines() {
+                    let tokens: Vec<crate::lexer::Token> = crate::lexer::tokenize(line);
+                    let ast: AstNode = crate::parser::parse(&**&tokens);
                     let _ = eval(&ast, env);
                 }
             }
             Value::Unit
         }
         AstNode::Print(args) => {
-            let vals: Vec<Value> = args.iter().map(|a| eval(a, env)).collect();
-            let out = vals.iter().map(|v| display_value(v)).collect::<Vec<_>>().join(" ");
+            let vals: Vec<Value> = (&**args).iter().map(|a: &AstNode| -> Value { eval(a, env) }).collect();
+            let out: String = (&*(&*vals).iter().map(|v: &Value| -> String { display_value(v) }).collect::<Vec<_>>()).join(" ");
             println!("{}", out);
             Value::Unit
         }
         AstNode::Log(args) => {
-            let vals: Vec<Value> = args.iter().map(|a| eval(a, env)).collect();
-            let out = vals.iter().map(|v| display_value(v)).collect::<Vec<_>>().join(" ");
+            let vals: Vec<Value> = (&**args).iter().map(|a: &AstNode| -> Value { eval(a, env) }).collect();
+            let out: String = (&*(&*vals).iter().map(|v: &Value| -> String { display_value(v) }).collect::<Vec<_>>()).join(" ");
             eprintln!("{}", out);
             Value::Unit
         }
@@ -124,43 +124,43 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
             let n = *order;
             if n == 0 { return eval(&AstNode::FunctionCall { name: name.clone(), args: args.clone() }, env); }
             if args.len() != 1 { return Value::Unit; }
-            let x = match eval(&args[0], env) { Value::Number(v) => v, _ => return Value::Unit };
-            let h = 1e-5;
-            let func_name = name.clone();
+            let x: f64 = match eval(&args[0], env) { Value::Number(v) => v, _ => return Value::Unit };
+            let h: f64 = 1e-5;
+            let func_name: String = name.clone();
             let mut df = |xx: f64| -> f64 {
-                let v = call_function(&func_name, &[Value::Number(xx)], env);
+                let v: Value = call_function(&**&func_name, &[Value::Number(xx)], env);
                 match v { Value::Number(n) => n, _ => f64::NAN }
             };
             let mut f1 = |xx: f64| (df(xx + h) - df(xx - h)) / (2.0 * h);
-            if n == 1 { return Value::Number(f1(x)); }
+            if n == 1 { return Value::Number((&mut f1)(x)); }
             // second derivative
             let mut f2 = |xx: f64| (df(xx + h) - 2.0*df(xx) + df(xx - h)) / (h*h);
-            if n == 2 { return Value::Number(f2(x)); }
+            if n == 2 { return Value::Number((&mut f2)(x)); }
             // higher order not implemented
             Value::Unit
         }
         AstNode::Conditional { condition, body } => {
-            let c = eval(condition, env);
+            let c: Value = eval(condition, env);
             if is_true(&c) { eval(body, env) } else { Value::Unit }
         }
         AstNode::DerivativeExpr { var, order, expr } => {
             // numeric derivative of expression w.r.t variable name
-            let var_name = var.clone();
+            let var_name: String = var.clone();
             let n = *order;
             if n == 0 { return eval(expr, env); }
-            let x0 = match env.vars.get(&var_name).cloned().unwrap_or(Value::Number(0.0)) { Value::Number(v) => v, _ => 0.0 };
-            let h = 1e-5;
+            let x0: f64 = match (&(*env).vars).get(&var_name).cloned().unwrap_or(Value::Number(0.0)) { Value::Number(v) => v, _ => 0.0 };
+            let h: f64 = 1e-5;
             let f = |xx: f64, env: &mut Env| -> f64 {
-                env.vars.insert(var_name.clone(), Value::Number(xx));
+                (&mut (*env).vars).insert((&var_name).clone(), Value::Number(xx));
                 match eval(expr, env) { Value::Number(v) => v, _ => f64::NAN }
             };
-            if n == 1 { return Value::Number((f(x0 + h, env) - f(x0 - h, env)) / (2.0*h)); }
-            if n == 2 { return Value::Number((f(x0 + h, env) - 2.0*f(x0, env) + f(x0 - h, env)) / (h*h)); }
+            if n == 1 { return Value::Number(((&f)(x0 + h, env) - (&f)(x0 - h, env)) / (2.0*h)); }
+            if n == 2 { return Value::Number(((&f)(x0 + h, env) - 2.0*(&f)(x0, env) + (&f)(x0 - h, env)) / (h*h)); }
             // higher order: repeat first derivative n times
-            let mut res = (f(x0 + h, env) - f(x0 - h, env)) / (2.0*h);
+            let mut res: f64 = ((&f)(x0 + h, env) - (&f)(x0 - h, env)) / (2.0*h);
             for _ in 2..=n {
                 let g = |xx: f64, env: &mut Env| (f(xx + h, env) - f(xx - h, env)) / (2.0*h);
-                res = g(x0, env);
+                res = (&g)(x0, env);
             }
             Value::Number(res)
         }
@@ -170,7 +170,7 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
 fn is_true(v: &Value) -> bool {
     match v {
         Value::Number(n) => *n != 0.0,
-        Value::Complex(c) => c.norm() != 0.0,
+        Value::Complex(c) => (*c).norm() != 0.0,
         Value::Array(a) => !a.is_empty(),
         Value::Str(s) => !s.is_empty(),
         Value::Function(_) => true,
@@ -182,10 +182,10 @@ fn call_function(name: &str, args: &[Value], env: &mut Env) -> Value {
     // built-ins
     if let Some(b) = call_builtin(name, args) { return b; }
     // user-defined
-    if let Some(f) = env.funcs.get(name).cloned() {
-        let mut local = Env::with_builtins();
-        for (i, p) in f.params.iter().enumerate() {
-            if let Some(v) = args.get(i) { local.vars.insert(p.clone(), v.clone()); }
+    if let Some(f) = (&(*env).funcs).get(name).cloned() {
+        let mut local: Env = Env::with_builtins();
+        for (i, p) in (&*f.params).iter().enumerate() {
+            if let Some(v) = args.get(i) { (&mut local.vars).insert(p.clone(), v.clone()); }
         }
         return eval(&f.body, &mut local);
     }
@@ -193,7 +193,7 @@ fn call_function(name: &str, args: &[Value], env: &mut Env) -> Value {
 }
 
 fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
-    let n1 = |v: &Value| if let Value::Number(x) = v { Some(*x) } else { None };
+    let n1 = |v: &Value| -> Option<f64> { if let Value::Number(x) = v { Some(*x) } else { None } };
     let map1 = |f: fn(f64)->f64| args.get(0).and_then(n1).map(|x| Value::Number(f(x)));
     // Note: 'a' before a trig function means 'arc', i.e., inverse trig, not area.
     // For example: asin = arc-sin (inverse sine), not area-sin.
@@ -203,12 +203,12 @@ fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
             if args.len() < 2 {
                 return Some(Value::Str("ERROR: deriv expects at least 2 arguments (function, x [, h])".to_string()));
             }
-            let f = &args[0];
-            let x = match &args[1] {
+            let f: &Value = &args[0];
+            let x: f64 = match &args[1] {
                 Value::Number(n) => *n,
                 _ => return Some(Value::Str("ERROR: deriv: x must be a number".to_string())),
             };
-            let h = if args.len() > 2 {
+            let h: f64 = if args.len() > 2 {
                 match &args[2] {
                     Value::Number(n) => *n,
                     _ => 1e-6,
@@ -217,15 +217,15 @@ fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
             // Only support closures for now
             if let Value::Function(func) = f {
                 // Single-variable function: f(x)
-                let mut env = Env::with_builtins();
-                let param = func.params.get(0).cloned().unwrap_or("x".to_string());
+                let mut env: Env = Env::with_builtins();
+                let param: String = (&*(*func).params).get(0).cloned().unwrap_or("x".to_string());
                 // f(x+h)
-                env.vars.insert(param.clone(), Value::Number(x + h));
-                let y1 = eval(&func.body, &mut env);
+                (&mut env.vars).insert((&param).clone(), Value::Number(x + h));
+                let y1: Value = eval(&(*func).body, &mut env);
                 // f(x-h)
-                let mut env2 = Env::with_builtins();
-                env2.vars.insert(param.clone(), Value::Number(x - h));
-                let y0 = eval(&func.body, &mut env2);
+                let mut env2: Env = Env::with_builtins();
+                (&mut env2.vars).insert((&param).clone(), Value::Number(x - h));
+                let y0: Value = eval(&(*func).body, &mut env2);
                 match (y1, y0) {
                     (Value::Number(y1n), Value::Number(y0n)) => Some(Value::Number((y1n - y0n) / (2.0 * h))),
                     _ => Some(Value::Str("ERROR: deriv: function did not return numbers".to_string())),
@@ -234,37 +234,37 @@ fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
                 Some(Value::Str("ERROR: deriv: first argument must be a function".to_string()))
             }
         },
-        "sin" => return map1(f64::sin),
-        "cos" => return map1(f64::cos),
-        "tan" => return map1(f64::tan),
-        "sec" => return map1(|x| 1.0 / x.cos()),
-        "csc" => return map1(|x| 1.0 / x.sin()),
-        "cot" => return map1(|x| x.cos() / x.sin()),
-        "asin" => return map1(f64::asin),
-        "acos" => return map1(f64::acos),
-        "atan" => return map1(f64::atan),
-        "asec" => return map1(|x| (1.0/x).acos()),
-        "acsc" => return map1(|x| (1.0/x).asin()),
-        "acot" => return map1(|x| (1.0/x).atan()),
-        "sinh" => return map1(f64::sinh),
-        "cosh" => return map1(f64::cosh),
-        "tanh" => return map1(f64::tanh),
-        "sech" => return map1(|x| 1.0 / x.cosh()),
-        "csch" => return map1(|x| 1.0 / x.sinh()),
-        "coth" => return map1(|x| x.cosh() / x.sinh()),
-        "asinh" => return map1(f64::asinh),
-        "acosh" => return map1(f64::acosh),
-        "atanh" => return map1(f64::atanh),
-        "asech" => return map1(|x| (1.0/x).acosh()),
-        "acsch" => return map1(|x| (1.0/x).asinh()),
-        "acoth" => return map1(|x| (1.0/x).atanh()),
-        "ln" => return map1(f64::ln),
-        "log" => return map1(|x| x.log10()),
-        "erf" => return map1(statrs::function::erf::erf),
-        "erfc" => return map1(statrs::function::erf::erfc),
+        "sin" => return (&map1)(f64::sin),
+        "cos" => return (&map1)(f64::cos),
+        "tan" => return (&map1)(f64::tan),
+        "sec" => return (&map1)(|x: f64| -> f64 { 1.0 / x.cos() }),
+        "csc" => return (&map1)(|x: f64| -> f64 { 1.0 / x.sin() }),
+        "cot" => return (&map1)(|x: f64| -> f64 { x.cos() / x.sin() }),
+        "asin" => return (&map1)(f64::asin),
+        "acos" => return (&map1)(f64::acos),
+        "atan" => return (&map1)(f64::atan),
+        "asec" => return (&map1)(|x: f64| -> f64 { (1.0/x).acos() }),
+        "acsc" => return (&map1)(|x: f64| -> f64 { (1.0/x).asin() }),
+        "acot" => return (&map1)(|x: f64| -> f64 { (1.0/x).atan() }),
+        "sinh" => return (&map1)(f64::sinh),
+        "cosh" => return (&map1)(f64::cosh),
+        "tanh" => return (&map1)(f64::tanh),
+        "sech" => return (&map1)(|x: f64| -> f64 { 1.0 / x.cosh() }),
+        "csch" => return (&map1)(|x: f64| -> f64 { 1.0 / x.sinh() }),
+        "coth" => return (&map1)(|x: f64| -> f64 { x.cosh() / x.sinh() }),
+        "asinh" => return (&map1)(f64::asinh),
+        "acosh" => return (&map1)(f64::acosh),
+        "atanh" => return (&map1)(f64::atanh),
+        "asech" => return (&map1)(|x: f64| -> f64 { (1.0/x).acosh() }),
+        "acsch" => return (&map1)(|x: f64| -> f64 { (1.0/x).asinh() }),
+        "acoth" => return (&map1)(|x: f64| -> f64 { (1.0/x).atanh() }),
+        "ln" => return (&map1)(f64::ln),
+        "log" => return (&map1)(|x: f64| -> f64 { x.log10() }),
+        "erf" => return (&map1)(statrs::function::erf::erf),
+        "erfc" => return (&map1)(statrs::function::erf::erfc),
         "print" => {
             // print variadic: convert to strings and return ()
-            let parts: Vec<String> = args.iter().map(|v| display_value(v)).collect();
+            let parts: Vec<String> = args.iter().map(|v: &Value| -> String { display_value(v) }).collect();
             println!("{}", parts.join(" "));
             return Some(Value::Unit)
         }
@@ -281,8 +281,8 @@ fn num_abs(v: Value) -> Value { match v { Value::Number(n) => Value::Number(n.ab
 fn num_factorial(v: Value) -> Value {
     match v {
         Value::Number(n) if n >= 0.0 && n.fract() == 0.0 => {
-            let mut acc = 1.0;
-            let mut i = 1.0;
+            let mut acc: f64 = 1.0;
+            let mut i: f64 = 1.0;
             while i <= n { acc *= i; i += 1.0; }
             Value::Number(acc)
         }
@@ -303,7 +303,7 @@ fn compare(op: BinaryOpKind, a: Value, b: Value) -> Value {
         (Value::Number(x), Value::Number(y)) => (x, y),
         _ => return Value::Unit,
     };
-    let res = match op {
+    let res: bool = match op {
     BinaryOpKind::Eq => l == r,
     BinaryOpKind::NotEq => l != r,
     BinaryOpKind::Gt => l > r,
@@ -332,33 +332,33 @@ fn lift_mul(a: Value, b: Value) -> Value {
             return from_matrix(prod);
         }
     }
-    lift_bin(a, b, |x,y| x*y)
+    lift_bin(a, b, |x: f64,y: f64| -> f64 { x*y })
 }
 
 fn map_array_scalar_right(arr: Vec<Value>, y: f64, f: fn(f64,f64)->f64) -> Value {
-    Value::Array(arr.into_iter().map(|v| match v {
+    Value::Array(arr.into_iter().map(|v: Value| -> Value { match v {
         Value::Number(x) => Value::Number(f(x, y)),
         Value::Array(a2) => match map_array_scalar_right(a2, y, f) { Value::Array(inner) => Value::Array(inner), other => other },
         other => other,
-    }).collect())
+    } }).collect())
 }
 
 fn map_array_scalar_left(x: f64, arr: Vec<Value>, f: fn(f64,f64)->f64) -> Value {
-    Value::Array(arr.into_iter().map(|v| match v {
+    Value::Array(arr.into_iter().map(|v: Value| -> Value { match v {
         Value::Number(y) => Value::Number(f(x, y)),
         Value::Array(a2) => match map_array_scalar_left(x, a2, f) { Value::Array(inner) => Value::Array(inner), other => other },
         other => other,
-    }).collect())
+    } }).collect())
 }
 
 fn map_arrays_rec(a: Vec<Value>, b: Vec<Value>, f: fn(f64,f64)->f64) -> Value {
-    if a.len() != b.len() { return Value::Unit; }
-    let mut out = Vec::with_capacity(a.len());
+    if a.len() != (&b).len() { return Value::Unit; }
+    let mut out = Vec::with_capacity((&a).len());
     for (va, vb) in a.into_iter().zip(b.into_iter()) {
         match (va, vb) {
-            (Value::Number(x), Value::Number(y)) => out.push(Value::Number(f(x,y))),
+            (Value::Number(x), Value::Number(y)) => (&mut out).push(Value::Number(f(x,y))),
             (Value::Array(ax), Value::Array(by)) => {
-                match map_arrays_rec(ax, by, f) { Value::Array(inner) => out.push(Value::Array(inner)), _ => return Value::Unit }
+                match map_arrays_rec(ax, by, f) { Value::Array(inner) => (&mut out).push(Value::Array(inner)), _ => return Value::Unit }
             }
             _ => return Value::Unit,
         }
@@ -369,16 +369,16 @@ fn map_arrays_rec(a: Vec<Value>, b: Vec<Value>, f: fn(f64,f64)->f64) -> Value {
 fn as_matrix(v: &Value) -> Option<Vec<Vec<f64>>> {
     match v {
         Value::Array(rows) => {
-            let mut m = Vec::with_capacity(rows.len());
+            let mut m: Vec<Vec<f64>> = Vec::with_capacity(rows.len());
             let mut width: Option<usize> = None;
             for r in rows {
                 if let Value::Array(cols) = r {
-                    let mut row = Vec::with_capacity(cols.len());
+                    let mut row: Vec<f64> = Vec::with_capacity(cols.len());
                     for c in cols {
-                        if let Value::Number(x) = c { row.push(*x); } else { return None; }
+                        if let Value::Number(x) = c { (&mut row).push(*x); } else { return None; }
                     }
-                    if let Some(w) = width { if w != row.len() { return None; } } else { width = Some(row.len()); }
-                    m.push(row);
+                    if let Some(w) = width { if w != (&row).len() { return None; } } else { width = Some((&row).len()); }
+                    (&mut m).push(row);
                 } else {
                     return None;
                 }
@@ -390,25 +390,25 @@ fn as_matrix(v: &Value) -> Option<Vec<Vec<f64>>> {
 }
 
 fn from_matrix(m: Vec<Vec<f64>>) -> Value {
-    let rows: Vec<Value> = m.into_iter().map(|r| Value::Array(r.into_iter().map(Value::Number).collect())).collect();
+    let rows: Vec<Value> = m.into_iter().map(|r: Vec<f64>| -> Value { Value::Array(r.into_iter().map(Value::Number).collect()) }).collect();
     Value::Array(rows)
 }
 
 fn matrix_mul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Option<Vec<Vec<f64>>> {
     let m = a.len();
-    let n = if m > 0 { a[0].len() } else { 0 };
+    let n = if m > 0 { (&a[0]).len() } else { 0 };
     let n2 = b.len();
-    let p = if n2 > 0 { b[0].len() } else { 0 };
+    let p = if n2 > 0 { (&b[0]).len() } else { 0 };
     if n != n2 { return None; }
     // verify consistent widths
-    if a.iter().any(|row| row.len()!=n) { return None; }
-    if b.iter().any(|row| row.len()!=p) { return None; }
-    let mut out = vec![vec![0.0; p]; m];
+    if (&mut (&**a).iter()).any(|row: &Vec<f64>| -> bool { row.len()!=n }) { return None; }
+    if (&mut (&**b).iter()).any(|row: &Vec<f64>| -> bool { row.len()!=p }) { return None; }
+    let mut out: Vec<Vec<f64>> = vec![vec![0.0; p]; m];
     for i in 0..m {
         for k in 0..n {
-            let aik = a[i][k];
+            let aik: f64 = (&a[i])[k];
             for j in 0..p {
-                out[i][j] += aik * b[k][j];
+                (&mut (&mut out)[i])[j] += aik * (&b[k])[j];
             }
         }
     }
@@ -421,7 +421,7 @@ fn display_value(v: &Value) -> String {
         Value::Complex(c) => format!("{}+{}i", c.re, c.im),
         Value::Str(s) => s.clone(),
         Value::Array(a) => {
-            let parts: Vec<String> = a.iter().map(|x| display_value(x)).collect();
+            let parts: Vec<String> = (&**a).iter().map(|x: &Value| -> String { display_value(x) }).collect();
             format!("[{}]", parts.join(", "))
         }
         Value::Function(f) => format!("<function:{} params>", f.params.len()),

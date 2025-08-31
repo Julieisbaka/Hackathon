@@ -8,14 +8,14 @@ use std::fs;
 use evaluator::Env;
 
 fn main() {
-    let mut args = env::args();
-    let _program = args.next();
-    let Some(path) = args.next() else {
+    let mut args: env::Args = env::args();
+    let _program: Option<String> = (&mut args).next();
+    let Some(path) = (&mut args).next() else {
         eprintln!("usage: syntax_interpreter <file.ms>");
         std::process::exit(1);
     };
 
-    let src = match fs::read_to_string(&path) {
+    let src: String = match fs::read_to_string(&path) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("failed to read {}: {}", path, e);
@@ -23,22 +23,22 @@ fn main() {
         }
     };
 
-    let mut env = Env::with_builtins();
-    let mut buffer = String::new();
-    for line in src.lines() {
-        buffer.push_str(line);
-        buffer.push('\n');
-        if !is_input_complete(&buffer) { continue; }
-        if buffer.trim().is_empty() { buffer.clear(); continue; }
-        let tokens = lexer::tokenize(&buffer);
-        let ast = parser::parse(&tokens);
+    let mut env: Env = Env::with_builtins();
+    let mut buffer: String = String::new();
+    for line in (&*src).lines() {
+        (&mut buffer).push_str(line);
+        (&mut buffer).push('\n');
+        if !is_input_complete(&**&buffer) { continue; }
+        if (&*buffer).trim().is_empty() { (&mut buffer).clear(); continue; }
+        let tokens: Vec<lexer::Token> = lexer::tokenize(&**&buffer);
+        let ast: ast::AstNode = parser::parse(&**&tokens);
         let _ = evaluator::eval(&ast, &mut env);
-        buffer.clear();
+        (&mut buffer).clear();
     }
     // In case file does not end with newline but last form is complete
-    if !buffer.trim().is_empty() && is_input_complete(&buffer) {
-        let tokens = lexer::tokenize(&buffer);
-        let ast = parser::parse(&tokens);
+    if !(&*buffer).trim().is_empty() && is_input_complete(&**&buffer) {
+        let tokens: Vec<lexer::Token> = lexer::tokenize(&**&buffer);
+        let ast: ast::AstNode = parser::parse(&**&tokens);
         let _ = evaluator::eval(&ast, &mut env);
     }
 }
@@ -46,12 +46,12 @@ fn main() {
 
 fn is_input_complete(src: &str) -> bool {
     let bytes = src.as_bytes();
-    let mut i = 0usize;
-    let mut paren = 0i32;
-    let mut brace = 0i32;
-    let mut bracket = 0i32;
-    let mut in_string = false;
-    let mut in_doc = false;
+    let mut i: usize = 0usize;
+    let mut paren: i32 = 0i32;
+    let mut brace: i32 = 0i32;
+    let mut bracket: i32 = 0i32;
+    let mut in_string: bool = false;
+    let mut in_doc: bool = false;
     while i < bytes.len() {
         // handle docstrings
         if in_doc {
