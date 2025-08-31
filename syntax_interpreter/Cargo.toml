@@ -1,6 +1,6 @@
 [package]
 name = "syntax_interpreter"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 
 description = "A custom language interpreter as described in Syntax.md."
