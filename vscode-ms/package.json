@@ -32,7 +32,8 @@
       }
     ],
     "commands": [
-      { "command": "ms.runFile", "title": "MS: Run Current File" }
+      { "command": "ms.runFile", "title": "MS: Run Current File" },
+      { "command": "ms.downloadInterpreter", "title": "MS: Download Interpreter", "category": "MS", "description": "Download the latest ms.exe from GitHub releases and set as runtime" }
     ],
     "configuration": {
       "title": "MS",
