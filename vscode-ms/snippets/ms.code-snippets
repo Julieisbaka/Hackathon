@@ -1,0 +1,37 @@
+{
+  "Function Definition": {
+    "prefix": "fn",
+    "body": [
+      "function ${1:name}(${2:params}) = ${3:body}" 
+    ],
+    "description": "Function definition"
+  },
+  "Assignment": {
+    "prefix": "let",
+    "body": [
+      "${1:var} = ${2:expr}"
+    ],
+    "description": "Variable assignment"
+  },
+  "Print": {
+    "prefix": "print",
+    "body": [
+      "print(${1:args})"
+    ],
+    "description": "Print statement"
+  },
+  "Derivative": {
+    "prefix": "deriv",
+    "body": [
+      "deriv(${1:f}, ${2:x})"
+    ],
+    "description": "Numerical derivative"
+  },
+  "Log": {
+    "prefix": "log",
+    "body": [
+      "log(\"${1:INFO}\", ${2:msg})"
+    ],
+    "description": "Log with level"
+  }
+}

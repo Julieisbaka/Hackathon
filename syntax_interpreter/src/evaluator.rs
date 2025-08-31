@@ -29,13 +29,16 @@ impl Env {
     pub fn new() -> Self { Self { vars: HashMap::new(), funcs: HashMap::new() } }
     pub fn with_builtins() -> Self {
         let mut env = Self::new();
-        // constants
-        env.vars.insert("e".to_string(), Value::Number(std::f64::consts::E));
-        env.vars.insert("pi".to_string(), Value::Number(std::f64::consts::PI));
-        env.vars.insert("i".to_string(), Value::Complex(Complex64::new(0.0, 1.0)));
-        env.vars.insert("j".to_string(), Value::Complex(Complex64::new(0.0, 1.0)));
-        env.vars.insert("k".to_string(), Value::Complex(Complex64::new(0.0, 1.0)));
-        env
+    // constants
+    env.vars.insert("e".to_string(), Value::Number(std::f64::consts::E));
+    env.vars.insert("pi".to_string(), Value::Number(std::f64::consts::PI));
+    // i: 1D imaginary unit (standard complex)
+    env.vars.insert("i".to_string(), Value::Complex(Complex64::new(0.0, 1.0)));
+    // j: 2D imaginary unit (distinct from i)
+    env.vars.insert("j".to_string(), Value::Complex(Complex64::new(0.0, 2.0)));
+    // k: 3D imaginary unit (distinct from i, j)
+    env.vars.insert("k".to_string(), Value::Complex(Complex64::new(0.0, 3.0)));
+    env
     }
 }
 
@@ -44,8 +47,18 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
         AstNode::Empty => Value::Unit,
         AstNode::Number(n) => Value::Number(*n),
     AstNode::Str(s) => Value::Str(s.clone()),
-        AstNode::Constant(name) => env.vars.get(name).cloned().unwrap_or(Value::Unit),
-        AstNode::Variable(name) => env.vars.get(name).cloned().unwrap_or(Value::Unit),
+        AstNode::Constant(name) => {
+            match env.vars.get(name) {
+                Some(val) => val.clone(),
+                None => Value::Str(format!("ERROR: constant '{}' does not exist", name)),
+            }
+        },
+        AstNode::Variable(name) => {
+            match env.vars.get(name) {
+                Some(val) => val.clone(),
+                None => Value::Str(format!("ERROR: variable '{}' does not exist", name)),
+            }
+        },
         AstNode::Assignment { name, expr } => {
             let val = eval(expr, env);
             env.vars.insert(name.clone(), val.clone());
@@ -182,7 +195,45 @@ fn call_function(name: &str, args: &[Value], env: &mut Env) -> Value {
 fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
     let n1 = |v: &Value| if let Value::Number(x) = v { Some(*x) } else { None };
     let map1 = |f: fn(f64)->f64| args.get(0).and_then(n1).map(|x| Value::Number(f(x)));
+    // Note: 'a' before a trig function means 'arc', i.e., inverse trig, not area.
+    // For example: asin = arc-sin (inverse sine), not area-sin.
     match name {
+        // Numerical derivative: deriv(f, x [, h])
+        "deriv" => {
+            if args.len() < 2 {
+                return Some(Value::Str("ERROR: deriv expects at least 2 arguments (function, x [, h])".to_string()));
+            }
+            let f = &args[0];
+            let x = match &args[1] {
+                Value::Number(n) => *n,
+                _ => return Some(Value::Str("ERROR: deriv: x must be a number".to_string())),
+            };
+            let h = if args.len() > 2 {
+                match &args[2] {
+                    Value::Number(n) => *n,
+                    _ => 1e-6,
+                }
+            } else { 1e-6 };
+            // Only support closures for now
+            if let Value::Function(func) = f {
+                // Single-variable function: f(x)
+                let mut env = Env::with_builtins();
+                let param = func.params.get(0).cloned().unwrap_or("x".to_string());
+                // f(x+h)
+                env.vars.insert(param.clone(), Value::Number(x + h));
+                let y1 = eval(&func.body, &mut env);
+                // f(x-h)
+                let mut env2 = Env::with_builtins();
+                env2.vars.insert(param.clone(), Value::Number(x - h));
+                let y0 = eval(&func.body, &mut env2);
+                match (y1, y0) {
+                    (Value::Number(y1n), Value::Number(y0n)) => Some(Value::Number((y1n - y0n) / (2.0 * h))),
+                    _ => Some(Value::Str("ERROR: deriv: function did not return numbers".to_string())),
+                }
+            } else {
+                Some(Value::Str("ERROR: deriv: first argument must be a function".to_string()))
+            }
+        },
         "sin" => return map1(f64::sin),
         "cos" => return map1(f64::cos),
         "tan" => return map1(f64::tan),
@@ -217,9 +268,11 @@ fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
             println!("{}", parts.join(" "));
             return Some(Value::Unit)
         }
-        _ => {}
+        _ => {
+            // Linkage error: function does not exist
+            Some(Value::Str(format!("ERROR: function '{}' does not exist or is not implemented", name)))
+        }
     }
-    None
 }
 
 fn num_neg(v: Value) -> Value { match v { Value::Number(n) => Value::Number(-n), _ => Value::Unit } }
@@ -375,5 +428,3 @@ fn display_value(v: &Value) -> String {
         Value::Unit => "()".to_string(),
     }
 }
-
-// numerical_derivative_n removed for simplicity

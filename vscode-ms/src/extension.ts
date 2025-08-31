@@ -5,9 +5,53 @@ import { BUILTINS, KEYWORDS } from './builtins';
 import fetch from 'node-fetch';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
+import { spawnSync } from 'child_process';
 import { Buffer } from 'buffer';
 
 export function activate(context: vscode.ExtensionContext) {
+  // Add a CodeLens at the top of .ms files to run the file
+  context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'ms' }, {
+    provideCodeLenses(document: vscode.TextDocument) {
+      if (document.lineCount === 0) return [];
+      return [
+        new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), {
+          title: '▶ Run File',
+          command: 'ms.runFile',
+          arguments: [],
+        })
+      ];
+    }
+  }));
+  // Inline result CodeLens provider for .ms files
+  context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'ms' }, {
+    async provideCodeLenses(document: vscode.TextDocument) {
+      const lenses: vscode.CodeLens[] = [];
+      for (let i = 0; i < document.lineCount; ++i) {
+        const line = document.lineAt(i);
+        const text = line.text.trim();
+        // Only show for non-empty, non-comment, non-assignment lines
+        if (!text || text.startsWith('#') || text.includes('=') || text.startsWith('function')) continue;
+        // Try to evaluate using the interpreter
+        const exePath = await resolveRuntime();
+        if (!exePath) continue;
+        try {
+          const tmp = os.tmpdir();
+          const tmpFile = path.join(tmp, `ms_inline_${Date.now()}_${Math.random().toString(36).slice(2)}.ms`);
+          fs.writeFileSync(tmpFile, text);
+          const result = spawnSync(exePath, [tmpFile], { encoding: 'utf8' });
+          fs.unlinkSync(tmpFile);
+          let output = (result.stdout || '').trim();
+          if (!output) output = (result.stderr || '').trim();
+          if (output.length > 80) output = output.slice(0, 80) + '...';
+          if (output) {
+            lenses.push(new vscode.CodeLens(line.range, { title: `= ${output}`, command: '', arguments: [] }));
+          }
+        } catch {}
+      }
+      return lenses;
+    }
+  }));
   // Download Interpreter command
   const downloadCmd = vscode.commands.registerCommand('ms.downloadInterpreter', async () => {
     const owner = 'Julieisbaka';
@@ -115,16 +159,32 @@ export function activate(context: vscode.ExtensionContext) {
     output.clear();
     output.show(true);
 
-  const extraArgs = cfg.get<string[]>('args', []);
-  const child = spawn(exePath, [...(extraArgs||[]), filePath], { shell: true });
+    const extraArgs = cfg.get<string[]>('args', []);
+    const child = spawn(exePath, [...(extraArgs||[]), filePath], { shell: true });
 
-  child.stdout.on('data', (data: Buffer) => output.append(data.toString()));
-  child.stderr.on('data', (data: Buffer) => output.append(data.toString()));
-  child.on('close', (code: number) => {
-    if (cfg.get<boolean>('showProcessExit', true)) {
-      output.appendLine(`\nProcess exited with code ${code}`);
+    function styleLog(line: string): string {
+      if (/^ERROR:/i.test(line)) return `\x1b[31m${line}\x1b[0m`; // red
+      if (/^WARN:/i.test(line)) return `\x1b[33m${line}\x1b[0m`; // yellow
+      if (/^INFO:/i.test(line)) return `\x1b[36m${line}\x1b[0m`; // cyan
+      if (/^DEBUG:/i.test(line)) return `\x1b[90m${line}\x1b[0m`; // gray
+      return line;
     }
-  });
+
+    function appendStyled(data: Buffer|string) {
+      const lines = data.toString().split(/\r?\n/);
+      for (const line of lines) {
+        if (line.trim().length === 0) continue;
+        output.appendLine(styleLog(line));
+      }
+    }
+
+    child.stdout.on('data', appendStyled);
+    child.stderr.on('data', appendStyled);
+    child.on('close', (code: number) => {
+      if (cfg.get<boolean>('showProcessExit', true)) {
+        output.appendLine(`\nProcess exited with code ${code}`);
+      }
+    });
   });
 
   // Register a basic semantic token provider using our JS lexer

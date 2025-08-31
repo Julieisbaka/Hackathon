@@ -6,7 +6,7 @@
   },
   "displayName": "Math Script",
   "description": "Language support for the MS language (lexer-based highlighting, run via MS interpreter).",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "JulieISBaka",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Programming Languages"],
@@ -29,6 +29,12 @@
         "language": "ms",
         "scopeName": "source.ms",
         "path": "./syntaxes/ms.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "ms",
+        "path": "./snippets/ms.code-snippets"
       }
     ],
     "commands": [
