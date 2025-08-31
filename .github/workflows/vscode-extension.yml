@@ -5,6 +5,8 @@ on:
 
 jobs:
   build-vsix:
+    permissions:
+      contents: write
     runs-on: windows-latest
     steps:
       - name: Checkout code
