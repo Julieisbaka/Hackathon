@@ -1,9 +1,9 @@
 {
   "name": "ms-language",
-  "displayName": "MS Language Support",
-  "description": "Language support for the MS language (lexer-based highlighting, run via Rust interpreter).",
+  "displayName": "Math Script",
+  "description": "Language support for the MS language (lexer-based highlighting, run via MS interpreter).",
   "version": "0.0.1",
-  "publisher": "your-name",
+  "publisher": "JulieISBaka",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Programming Languages"],
   "activationEvents": [
