@@ -47,7 +47,7 @@
         "ms.runtimePath": {
           "type": "string",
           "default": "",
-          "description": "Absolute path to the compiled Rust interpreter executable for running .ms files"
+          "description": "Absolute path to the MS interpreter executable for running .ms files"
         },
         "ms.autoDetectRuntime": {
           "type": "boolean",

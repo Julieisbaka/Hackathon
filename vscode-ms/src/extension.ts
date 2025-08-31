@@ -151,7 +151,7 @@ export function activate(context: vscode.ExtensionContext) {
   const exePath = await resolveRuntime();
 
     if (!exePath) {
-      vscode.window.showErrorMessage('Set ms.runtimePath to your compiled Rust interpreter executable.');
+      vscode.window.showErrorMessage('Set ms.runtimePath to the ms interpreter executable.');
       return;
     }
 
