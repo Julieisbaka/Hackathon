@@ -1,0 +1,53 @@
+name: Build and Release VS Code Extension
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-vsix:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./vscode-ms
+
+      - name: Build extension
+        run: npm run compile
+        working-directory: ./vscode-ms
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Package extension as vsix
+        run: vsce package --out ms-language.vsix
+        working-directory: ./vscode-ms
+
+      - name: Upload vsix as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ms-language-vsix
+          path: ./vscode-ms/ms-language.vsix
+
+      - name: Get date for tag
+        id: date
+        run: echo "::set-output name=tag::ms-vscode-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.date.outputs.tag }}
+          name: "MS VSCode Extension Release ${{ steps.date.outputs.tag }}"
+          files: ./vscode-ms/ms-language.vsix
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
