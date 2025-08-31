@@ -1,0 +1,43 @@
+name: Build and Release Interpreter (Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions/setup-rust@v1
+        with:
+          rust-version: stable
+
+      - name: Build in release mode
+        run: cargo build --release
+        working-directory: ./syntax_interpreter
+
+      - name: Rename exe for upload
+        run: |
+          mkdir upload
+          copy syntax_interpreter\target\release\syntax_interpreter.exe upload\ms.exe
+        shell: pwsh
+        working-directory: ./
+
+      - name: Get date for tag
+        id: date
+        run: echo "::set-output name=tag::ms-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.date.outputs.tag }}
+          name: "MS Interpreter Release ${{ steps.date.outputs.tag }}"
+          files: upload/ms.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

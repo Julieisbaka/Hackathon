@@ -7,7 +7,12 @@ export interface Token {
 }
 
 const keywords = new Set<string>([
-  'import','print','log','d','sin','cos','tan','asin','acos','atan','sinh','cosh','tanh','erf','erfc','ln','log','pi','e','i','j','k'
+  'import','print','log','d',
+  'sin','cos','tan','sec','csc','cot',
+  'asin','acos','atan','asec','acsc','acot',
+  'sinh','cosh','tanh','sech','csch','coth',
+  'asinh','acosh','atanh','asech','acsch','acoth',
+  'erf','erfc','ln','log','pi','e','i','j','k'
 ]);
 
 export function tokenize(input: string): Token[] {

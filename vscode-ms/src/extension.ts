@@ -2,8 +2,64 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { tokenize } from './lexer';
 import { BUILTINS, KEYWORDS } from './builtins';
+import fetch from 'node-fetch';
+import * as path from 'path';
+import * as fs from 'fs';
+import { Buffer } from 'buffer';
 
 export function activate(context: vscode.ExtensionContext) {
+  // Download Interpreter command
+  const downloadCmd = vscode.commands.registerCommand('ms.downloadInterpreter', async () => {
+    const owner = 'Julieisbaka';
+    const repo = 'Hackathon';
+    const assetName = 'ms.exe';
+    const api = `https://api.github.com/repos/${owner}/${repo}/releases`;
+  const releases = await fetch(api).then((r: any) => r.json());
+    if (!Array.isArray(releases) || releases.length === 0) {
+      vscode.window.showErrorMessage('No releases found on GitHub.');
+      return;
+    }
+    // Find the latest release with ms.exe
+    let assetUrl = '';
+    for (const rel of releases) {
+      const asset = (rel.assets||[]).find((a:any) => a.name === assetName);
+      if (asset) { assetUrl = asset.browser_download_url; break; }
+    }
+    if (!assetUrl) {
+      vscode.window.showErrorMessage('No ms.exe asset found in the latest releases.');
+      return;
+    }
+    // Ask user where to save
+    const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const defaultPath = ws ? path.join(ws, assetName) : undefined;
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: defaultPath ? vscode.Uri.file(defaultPath) : undefined,
+      saveLabel: 'Save ms.exe',
+      filters: { 'Executable': ['exe'] }
+    });
+    if (!uri) return;
+    // Download
+  const res = await fetch(assetUrl);
+    if (!res.ok) {
+      vscode.window.showErrorMessage('Failed to download ms.exe: ' + res.statusText);
+      return;
+    }
+  const buf = await res.arrayBuffer();
+  fs.writeFileSync(uri.fsPath, Buffer.from(buf));
+    vscode.window.showInformationMessage('ms.exe downloaded to ' + uri.fsPath);
+    // Optionally update runtimePath
+    const cfg = vscode.workspace.getConfiguration('ms');
+    await cfg.update('runtimePath', uri.fsPath, vscode.ConfigurationTarget.Workspace);
+  });
+
+  // Status bar button
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  status.text = '$(cloud-download) Download MS Interpreter';
+  status.command = 'ms.downloadInterpreter';
+  status.tooltip = 'Download the latest ms.exe from GitHub releases';
+  status.show();
+  context.subscriptions.push(status);
+  context.subscriptions.push(downloadCmd);
   const resolveRuntime = async (): Promise<string | undefined> => {
     const cfg = vscode.workspace.getConfiguration('ms');
     const explicit = cfg.get<string>('runtimePath');
@@ -77,7 +133,7 @@ export function activate(context: vscode.ExtensionContext) {
   ], []);
 
   const provider: vscode.DocumentSemanticTokensProvider = {
-    provideDocumentSemanticTokens(doc: vscode.TextDocument) {
+  provideDocumentSemanticTokens(doc: vscode.TextDocument) {
       const text = doc.getText();
       const tokens = tokenize(text);
       const builder = new vscode.SemanticTokensBuilder(legend);
@@ -98,7 +154,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Completion provider for built-ins
   if (vscode.workspace.getConfiguration('ms').get<boolean>('enableCompletions', true)) {
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider({ language: 'ms' }, {
-    provideCompletionItems() {
+  provideCompletionItems(): vscode.CompletionItem[] {
       const items: vscode.CompletionItem[] = [];
       for (const b of BUILTINS) {
         const item = new vscode.CompletionItem(b.name, b.kind === 'function' ? vscode.CompletionItemKind.Function : vscode.CompletionItemKind.Constant);
@@ -117,7 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Hover provider with docs
   if (vscode.workspace.getConfiguration('ms').get<boolean>('enableHoverDocstrings', true)) {
     context.subscriptions.push(vscode.languages.registerHoverProvider({ language: 'ms' }, {
-    provideHover(doc, pos) {
+  provideHover(doc: vscode.TextDocument, pos: vscode.Position): vscode.Hover | undefined {
       const range = doc.getWordRangeAtPosition(pos, /[A-Za-z_][A-Za-z0-9_]*/);
       if (!range) return undefined;
       const word = doc.getText(range);
@@ -167,7 +223,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Signature help (basic, based on built-ins only)
   if (vscode.workspace.getConfiguration('ms').get<boolean>('enableSignatureHelp', true)) {
     context.subscriptions.push(vscode.languages.registerSignatureHelpProvider({ language: 'ms' }, {
-    provideSignatureHelp(doc, pos) {
+  provideSignatureHelp(doc: vscode.TextDocument, pos: vscode.Position): vscode.SignatureHelp | null {
       const linePrefix = doc.lineAt(pos.line).text.slice(0, pos.character);
       const m = /([A-Za-z_][A-Za-z0-9_]*)\s*\($/.exec(linePrefix);
       if (!m) return null;
@@ -187,7 +243,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Optional: run on save
   if (vscode.workspace.getConfiguration('ms').get<boolean>('runOnSave', false)) {
-    context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(doc => {
+  context.subscriptions.push(vscode.workspace.onDidSaveTextDocument((doc: vscode.TextDocument) => {
       if (doc.languageId === 'ms') {
         vscode.commands.executeCommand('ms.runFile');
       }

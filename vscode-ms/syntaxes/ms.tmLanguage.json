@@ -56,7 +56,7 @@
       "patterns": [
         {
           "name": "support.function.ms",
-          "match": "\\b(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|erf|erfc|ln|log)\\b"
+          "match": "\\b(sin|cos|tan|sec|csc|cot|asin|acos|atan|asec|acsc|acot|sinh|cosh|tanh|sech|csch|coth|asinh|acosh|atanh|asech|acsch|acoth|erf|erfc|ln|log)\\b"
         }
       ]
     },
