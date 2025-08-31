@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { tokenize } from './lexer';
 import { BUILTINS, KEYWORDS } from './builtins';
-import fetch from 'node-fetch';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -58,7 +57,7 @@ export function activate(context: vscode.ExtensionContext) {
     const repo = 'Hackathon';
     const assetName = 'ms.exe';
     const api = `https://api.github.com/repos/${owner}/${repo}/releases`;
-  const releases = await fetch(api).then((r: any) => r.json());
+  const releases = await (globalThis as any).fetch(api).then((r: any) => r.json());
     if (!Array.isArray(releases) || releases.length === 0) {
       vscode.window.showErrorMessage('No releases found on GitHub.');
       return;
@@ -83,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
     if (!uri) return;
     // Download
-  const res = await fetch(assetUrl);
+  const res = await (globalThis as any).fetch(assetUrl);
     if (!res.ok) {
       vscode.window.showErrorMessage('Failed to download ms.exe: ' + res.statusText);
       return;
@@ -126,10 +125,9 @@ export function activate(context: vscode.ExtensionContext) {
     const pathEnv = (process.env.PATH || '').split(process.platform === 'win32' ? ';' : ':');
     for (const dir of pathEnv) {
       for (const exe of exeNames) {
-        candidates.push(require('path').join(dir, exe));
+        candidates.push(path.join(dir, exe));
       }
     }
-    const fs = await import('fs');
     for (const c of candidates) {
       try { if (fs.existsSync(c)) return c; } catch {}
     }
