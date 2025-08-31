@@ -9,8 +9,7 @@ Setup:
 
 1. Download the MS interpreter executable.
 2. In VS Code, set `ms.runtimePath` to that executable path. Or leave it empty and keep `ms.autoDetectRuntime: true` to let the extension find it automatically in common build paths or on PATH.
-3. In this folder, run: `npm install` then `npm run compile`.
-4. Press F5 to launch the extension host and test.
+3. Install this extension
 
 Settings:
 
