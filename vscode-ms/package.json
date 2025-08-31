@@ -1,0 +1,107 @@
+{
+  "name": "ms-language",
+  "displayName": "MS Language Support",
+  "description": "Language support for the MS language (lexer-based highlighting, run via Rust interpreter).",
+  "version": "0.0.1",
+  "publisher": "your-name",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages"],
+  "activationEvents": [
+    "onLanguage:ms",
+    "onCommand:ms.runFile"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ms",
+        "aliases": ["MS", "ms"],
+        "extensions": [".ms"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ms",
+        "scopeName": "source.ms",
+        "path": "./syntaxes/ms.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      { "command": "ms.runFile", "title": "MS: Run Current File" }
+    ],
+    "configuration": {
+      "title": "MS",
+      "properties": {
+        "ms.runtimePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the compiled Rust interpreter executable for running .ms files"
+        },
+        "ms.autoDetectRuntime": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect the MS interpreter executable in common build locations and PATH"
+        },
+        "ms.searchPaths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "${workspaceFolder}/syntax_interpreter/target/release",
+            "${workspaceFolder}/syntax_interpreter/target/debug",
+            "${workspaceFolder}/target/release",
+            "${workspaceFolder}/target/debug"
+          ],
+          "description": "Additional directories to search for the interpreter executable"
+        },
+        "ms.args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Extra command line arguments passed to the interpreter when running the current file"
+        },
+        "ms.runOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run the current MS file automatically when it is saved"
+        },
+        "ms.showProcessExit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Append the process exit code to the output channel"
+        },
+        "ms.enableSemanticTokens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable semantic token highlighting using the built-in lexer"
+        },
+        "ms.enableCompletions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable completions for built-ins and keywords"
+        },
+        "ms.enableHoverDocstrings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable hover tooltips with built-in docs and nearby docstrings/comments"
+        },
+        "ms.enableSignatureHelp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable signature help for built-in functions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {}
+}

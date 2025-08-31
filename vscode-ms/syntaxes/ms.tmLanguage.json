@@ -1,0 +1,73 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "MS",
+  "scopeName": "source.ms",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#functions" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.ms",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.ms",
+          "begin": "\"\"\"",
+          "end": "\"\"\""
+        },
+        {
+          "name": "string.quoted.double.ms",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.ms", "match": "\\." }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.ms",
+          "match": "(?:[0-9][0-9_]*)(?:\\.[0-9_]+)?|(?:\\.[0-9_]+)"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ms",
+          "match": "\\b(import|print|log|d)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "support.function.ms",
+          "match": "\\b(sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|erf|erfc|ln|log)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.ms",
+          "match": "==|!=|>=|<=|[+\\-*/^=()\\[\\]{},!<>|:]"
+        }
+      ]
+    }
+  },
+  "uuid": "e3c6d9e3-c7c7-4d75-9b78-1f9407c4d7aa"
+}

@@ -1,0 +1,10 @@
+[package]
+name = "syntax_interpreter"
+version = "0.1.0"
+edition = "2021"
+
+description = "A custom language interpreter as described in Syntax.md."
+
+[dependencies]
+num-complex = "0.4"
+statrs = "0.16"
