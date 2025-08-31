@@ -2,6 +2,7 @@
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AstNode {
+    Program(Vec<AstNode>),
     Empty,
     Number(f64),
     Str(String),

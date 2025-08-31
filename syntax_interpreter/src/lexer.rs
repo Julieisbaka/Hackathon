@@ -7,35 +7,36 @@ pub struct Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    Identifier = 0,
-    Number = 1,
-    String = 2,
-    DocString = 3,
-    Assign = 4,         // =
-    Plus = 5,           // +
-    Minus = 6,          // -
-    Star = 7,           // *
-    Slash = 8,          // /
-    Caret = 9,          // ^
-    Bang = 10,           // ! (prefix not or postfix factorial)
-    LParen = 11,         // (
-    RParen = 12,         // )
-    LBrace = 13,         // {
-    RBrace = 14,         // }
-    LBracket = 15,       // [
-    RBracket = 16,       // ]
-    Comma = 17,          // ,
-    Pipe = 18,           // |
-    Prime = 19,          // '
-    Colon = 20,          // :
-    Greater = 21,        // >
-    Less = 22,           // <
-    GreaterEq = 23,      // >=
-    LessEq = 24,         // <=
-    Equal = 25,          // ==
-    NotEqual = 26,       // !=
-    EOF = 27,
-    Unknown = 28,
+    Identifier, // 0
+    Number,     // 1
+    String,     // 2
+    DocString,  // 3
+    Assign,     // =
+    Plus,       // +
+    Minus,      // -
+    Star,       // *
+    Slash,      // /
+    Caret,      // ^
+    Bang,       // ! (prefix not or postfix factorial)
+    LParen,     // (
+    RParen,     // )
+    LBrace,     // {
+    RBrace,     // }
+    LBracket,   // [
+    RBracket,   // ]
+    Comma,      // ,
+    Pipe,       // |
+    Prime,      // '
+    Colon,      // :
+    Greater,    // >
+    Less,       // <
+    GreaterEq,  // >=
+    LessEq,     // <=
+    Equal,      // ==
+    NotEqual,   // !=
+    Semicolon,  // ;
+    EOF,
+    Unknown,
 }
 
 pub fn tokenize(input: &str) -> Vec<Token> {
@@ -121,6 +122,7 @@ pub fn tokenize(input: &str) -> Vec<Token> {
         } else {
             // Single- and multi-character tokens and operators
             match c {
+                ';' => { (&mut chars).next(); (&mut tokens).push(Token { kind: TokenKind::Semicolon, lexeme: ";".to_string() }); }
                 '=' => {
                     (&mut chars).next();
                     if let Some('=') = (&mut chars).peek().copied() {

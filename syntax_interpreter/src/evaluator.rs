@@ -44,6 +44,22 @@ impl Env {
 
 pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
     match ast {
+        AstNode::Program(stmts) => {
+            // First pass: register all function definitions
+            for stmt in stmts {
+                if let AstNode::FunctionDef { .. } = stmt {
+                    eval(stmt, env);
+                }
+            }
+            // Second pass: evaluate all non-function-def statements
+            let mut last: Value = Value::Unit;
+            for stmt in stmts {
+                if !matches!(stmt, AstNode::FunctionDef { .. }) {
+                    last = eval(stmt, env);
+                }
+            }
+            last
+        }
         AstNode::Empty => Value::Unit,
         AstNode::Number(n) => Value::Number(*n),
     AstNode::Str(s) => Value::Str(s.clone()),
@@ -179,16 +195,22 @@ fn is_true(v: &Value) -> bool {
 }
 
 fn call_function(name: &str, args: &[Value], env: &mut Env) -> Value {
-    // built-ins
-    if let Some(b) = call_builtin(name, args) { return b; }
-    // user-defined
+    // user-defined first
+    // fn to_hex(s: &str) -> String {
+    //     s.as_bytes().iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" ")
+    // }
+    // println!("DEBUG: Looking up function name: '{}' [{}], registered: {:?}, env ptr: {:p}", name, to_hex(name), env.funcs.keys().map(|k| format!("{} [{}]", k, to_hex(k))).collect::<Vec<_>>(), env);
     if let Some(f) = (&(*env).funcs).get(name).cloned() {
         let mut local: Env = Env::with_builtins();
+        // Inherit user-defined functions from parent environment
+        local.funcs = env.funcs.clone();
         for (i, p) in (&*f.params).iter().enumerate() {
             if let Some(v) = args.get(i) { (&mut local.vars).insert(p.clone(), v.clone()); }
         }
         return eval(&f.body, &mut local);
     }
+    // built-ins
+    if let Some(b) = call_builtin(name, args) { return b; }
     Value::Unit
 }
 

@@ -6,11 +6,28 @@ use crate::ast::{AstNode, UnaryOpKind, BinaryOpKind};
 
 pub fn parse(tokens: &[Token]) -> AstNode {
     let mut parser: Parser<'_> = Parser::new(tokens);
-    let result: AstNode = match (&mut parser).parse_statement() {
-        Some(expr) => expr,
-        None => AstNode::Empty,
-    };
-    result
+    let mut stmts: Vec<AstNode> = Vec::new();
+    while parser.pos < parser.tokens.len() {
+        // skip EOF
+        if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::EOF)) { break; }
+        // skip empty/unknown tokens (e.g., newlines)
+        while matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Unknown)) {
+            parser.pos += 1;
+        }
+        if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::EOF)) { break; }
+        if let Some(stmt) = (&mut parser).parse_statement() {
+            (&mut stmts).push(stmt);
+        }
+        // After a statement, if the next token is a semicolon, consume it (explicit statement separator)
+        if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Semicolon)) {
+            parser.pos += 1;
+        }
+        // If not a semicolon, but not EOF, skip invalid token
+        else if !matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::EOF)) {
+            parser.pos += 1;
+        }
+    }
+    AstNode::Program(stmts)
 }
 
 struct Parser<'a> {
@@ -54,13 +71,19 @@ impl<'a> Parser<'a> {
         }
         if let Some(Token { kind: TokenKind::Identifier, lexeme }) = self.peek() {
             let name: String = lexeme.clone();
-            // function def pattern
+            // function def pattern (only allowed as a statement, not as an expression)
             if matches!(self.lookahead_kind(1), Some(TokenKind::LParen)) {
                 self.next(); // name
                 self.next(); // (
                 let params: Vec<String> = self.parse_params()?;
                 self.expect(TokenKind::Assign)?;
-                let expr: AstNode = self.parse_expression(0)?;
+                let mut expr: AstNode = self.parse_expression(0)?;
+                // Check for trailing {condition} after function body
+                if self.match_kind(TokenKind::LBrace) {
+                    let cond: AstNode = self.parse_condition_expression(0)?;
+                    self.expect(TokenKind::RBrace)?;
+                    expr = AstNode::Conditional { condition: Box::new(cond), body: Box::new(expr) };
+                }
                 return Some(AstNode::FunctionDef { name, params, body: Box::new(expr) });
             }
             // assignment pattern

@@ -24,21 +24,11 @@ fn main() {
     };
 
     let mut env: Env = Env::with_builtins();
-    let mut buffer: String = String::new();
-    for line in (&*src).lines() {
-        (&mut buffer).push_str(line);
-        (&mut buffer).push('\n');
-        if !is_input_complete(&**&buffer) { continue; }
-        if (&*buffer).trim().is_empty() { (&mut buffer).clear(); continue; }
-        let tokens: Vec<lexer::Token> = lexer::tokenize(&**&buffer);
-        let ast: ast::AstNode = parser::parse(&**&tokens);
-        let _ = evaluator::eval(&ast, &mut env);
-        (&mut buffer).clear();
-    }
-    // In case file does not end with newline but last form is complete
-    if !(&*buffer).trim().is_empty() && is_input_complete(&**&buffer) {
-        let tokens: Vec<lexer::Token> = lexer::tokenize(&**&buffer);
-        let ast: ast::AstNode = parser::parse(&**&tokens);
+    // Process the entire file as a single block (semicolon as separator)
+    let src_trimmed = src.trim();
+    if !src_trimmed.is_empty() {
+        let tokens: Vec<lexer::Token> = lexer::tokenize(src_trimmed);
+        let ast: ast::AstNode = parser::parse(&tokens);
         let _ = evaluator::eval(&ast, &mut env);
     }
 }
