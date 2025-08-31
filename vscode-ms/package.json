@@ -1,5 +1,9 @@
 {
   "name": "ms-language",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Julieisbaka/Hackathon"
+  },
   "displayName": "Math Script",
   "description": "Language support for the MS language (lexer-based highlighting, run via MS interpreter).",
   "version": "0.0.1",

@@ -1,0 +1,9 @@
+**/.vscode/**
+**/.github/**
+**/test/**
+**/*.map
+**/src/**
+**/tsconfig.json
+**/README.md
+**/LICENSE.md
+**/node_modules/**
