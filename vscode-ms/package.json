@@ -8,8 +8,12 @@
   "description": "Language support for the MS language (lexer-based highlighting, run via MS interpreter).",
   "version": "0.0.2",
   "publisher": "JulieISBaka",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
   "activationEvents": [
     "onLanguage:ms",
     "onCommand:ms.runFile"
@@ -19,8 +23,13 @@
     "languages": [
       {
         "id": "ms",
-        "aliases": ["MS", "ms"],
-        "extensions": [".ms"],
+        "aliases": [
+          "MS",
+          "ms"
+        ],
+        "extensions": [
+          ".ms"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -38,8 +47,16 @@
       }
     ],
     "commands": [
-      { "command": "ms.runFile", "title": "MS: Run Current File" },
-      { "command": "ms.downloadInterpreter", "title": "MS: Download Interpreter", "category": "MS", "description": "Download the latest ms.exe from GitHub releases and set as runtime" }
+      {
+        "command": "ms.runFile",
+        "title": "MS: Run Current File"
+      },
+      {
+        "command": "ms.downloadInterpreter",
+        "title": "MS: Download Interpreter",
+        "category": "MS",
+        "description": "Download the latest ms.exe from GitHub releases and set as runtime"
+      }
     ],
     "configuration": {
       "title": "MS",
@@ -56,7 +73,9 @@
         },
         "ms.searchPaths": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [
             "${workspaceFolder}/syntax_interpreter/target/release",
             "${workspaceFolder}/syntax_interpreter/target/debug",
@@ -67,7 +86,9 @@
         },
         "ms.args": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Extra command line arguments passed to the interpreter when running the current file"
         },
@@ -111,10 +132,11 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
+    "@types/node-fetch": "^2.6.13",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^2.6.7"
   }
 }
