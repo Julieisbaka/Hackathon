@@ -10,19 +10,19 @@ pub fn parse(tokens: &[Token]) -> AstNode {
     while parser.pos < parser.tokens.len() {
         // skip EOF
         if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::EOF)) { break; }
-        // skip empty/unknown tokens (e.g., newlines)
-        while matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Unknown)) {
+        // skip empty/unknown/newline tokens
+        while matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Unknown) | Some(TokenKind::Newline)) {
             parser.pos += 1;
         }
         if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::EOF)) { break; }
         if let Some(stmt) = (&mut parser).parse_statement() {
             (&mut stmts).push(stmt);
         }
-        // After a statement, if the next token is a semicolon, consume it (explicit statement separator)
-        if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Semicolon)) {
+        // After a statement, if the next token is a semicolon or newline, consume it (explicit/implicit statement separator)
+        if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Semicolon) | Some(TokenKind::Newline)) {
             parser.pos += 1;
         }
-        // If not a semicolon or EOF, do not advance; let the next loop handle the next statement
+        // If not a semicolon/newline/EOF, do not advance; let the next loop handle the next statement
     }
     AstNode::Program(stmts)
 }

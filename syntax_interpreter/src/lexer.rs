@@ -35,6 +35,7 @@ pub enum TokenKind {
     Equal,      // ==
     NotEqual,   // !=
     Semicolon,  // ;
+    Newline,    // \n
     EOF,
     Unknown,
 }
@@ -43,7 +44,10 @@ pub fn tokenize(input: &str) -> Vec<Token> {
     let mut tokens: Vec<Token> = Vec::new();
     let mut chars: std::iter::Peekable<std::str::Chars<'_>> = input.chars().peekable();
     while let Some(&c) = (&mut chars).peek() {
-        if c.is_whitespace() {
+        if c == '\n' {
+            (&mut chars).next();
+            (&mut tokens).push(Token { kind: TokenKind::Newline, lexeme: "\n".to_string() });
+        } else if c.is_whitespace() {
             (&mut chars).next();
         } else if c == '#' {
             // comment to end of line

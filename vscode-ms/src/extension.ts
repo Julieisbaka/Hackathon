@@ -1,3 +1,32 @@
+  // Diagnostics provider for real syntax errors
+  const diagnostics = vscode.languages.createDiagnosticCollection('ms');
+  context.subscriptions.push(diagnostics);
+  vscode.workspace.onDidOpenTextDocument(checkMsDiagnostics);
+  vscode.workspace.onDidSaveTextDocument(checkMsDiagnostics);
+  vscode.workspace.onDidCloseTextDocument(doc => diagnostics.delete(doc.uri));
+
+  async function checkMsDiagnostics(doc: vscode.TextDocument) {
+    if (doc.languageId !== 'ms') return;
+    const exePath = await resolveRuntime();
+    if (!exePath) return;
+    const tmp = os.tmpdir();
+    const tmpFile = path.join(tmp, `ms_diag_${Date.now()}_${Math.random().toString(36).slice(2)}.ms`);
+    fs.writeFileSync(tmpFile, doc.getText());
+    const result = spawnSync(exePath, [tmpFile], { encoding: 'utf8' });
+    fs.unlinkSync(tmpFile);
+    let output = (result.stderr || '').trim();
+    if (!output) output = (result.stdout || '').trim();
+    const diags: vscode.Diagnostic[] = [];
+    // Look for lines like 'ERROR: invalid syntax at line X' or similar
+    const regex = /ERROR:.*at line (\d+)/gi;
+    let match;
+    while ((match = regex.exec(output))) {
+      const line = parseInt(match[1], 10) - 1;
+      const range = doc.lineAt(line).range;
+      diags.push(new vscode.Diagnostic(range, output, vscode.DiagnosticSeverity.Error));
+    }
+    diagnostics.set(doc.uri, diags);
+  }
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { tokenize } from './lexer';

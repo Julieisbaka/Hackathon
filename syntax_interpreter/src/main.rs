@@ -29,6 +29,7 @@ fn main() {
     if !src_trimmed.is_empty() {
         let tokens: Vec<lexer::Token> = lexer::tokenize(src_trimmed);
     let ast: ast::AstNode = parser::parse(&tokens);
+    #[cfg(feature = "debug-ast")]
     eprintln!("[DEBUG] AST: {:?}", ast);
     let _ = evaluator::eval(&ast, &mut env);
     }

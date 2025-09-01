@@ -48,7 +48,7 @@
       "patterns": [
         {
           "name": "keyword.control.ms",
-          "match": "\\b(import|print|log|d)\\b"
+          "match": "\\b(import|print|log|d|function|if|else|return|while|for|break|continue|true|false|and|or|not)\\b"
         }
       ]
     },
@@ -57,6 +57,18 @@
         {
           "name": "support.function.ms",
           "match": "\\b(sin|cos|tan|sec|csc|cot|asin|acos|atan|asec|acsc|acot|sinh|cosh|tanh|sech|csch|coth|asinh|acosh|atanh|asech|acsch|acoth|erf|erfc|ln|log)\\b"
+        },
+        {
+          "name": "entity.name.function.ms",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.ms",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\b"
         }
       ]
     },
@@ -64,7 +76,7 @@
       "patterns": [
         {
           "name": "keyword.operator.ms",
-          "match": "==|!=|>=|<=|[+\\-*/^=()\\[\\]{},!<>|:]"
+          "match": "==|!=|>=|<=|//|%|\\*\\*|[+\\-*/^=()\\[\\]{},!<>|:%]"
         }
       ]
     }

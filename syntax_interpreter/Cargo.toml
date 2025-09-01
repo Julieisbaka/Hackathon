@@ -1,3 +1,5 @@
+[features]
+debug-ast = []
 [package]
 name = "syntax_interpreter"
 version = "0.0.3"
