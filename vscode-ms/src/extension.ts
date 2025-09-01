@@ -8,22 +8,111 @@
   async function checkMsDiagnostics(doc: vscode.TextDocument) {
     if (doc.languageId !== 'ms') return;
     const exePath = await resolveRuntime();
-    if (!exePath) return;
-    const tmp = os.tmpdir();
-    const tmpFile = path.join(tmp, `ms_diag_${Date.now()}_${Math.random().toString(36).slice(2)}.ms`);
-    fs.writeFileSync(tmpFile, doc.getText());
-    const result = spawnSync(exePath, [tmpFile], { encoding: 'utf8' });
-    fs.unlinkSync(tmpFile);
-    let output = (result.stderr || '').trim();
-    if (!output) output = (result.stdout || '').trim();
     const diags: vscode.Diagnostic[] = [];
-    // Look for lines like 'ERROR: invalid syntax at line X' or similar
-    const regex = /ERROR:.*at line (\d+)/gi;
-    let match;
-    while ((match = regex.exec(output))) {
-      const line = parseInt(match[1], 10) - 1;
-      const range = doc.lineAt(line).range;
-      diags.push(new vscode.Diagnostic(range, output, vscode.DiagnosticSeverity.Error));
+
+    // 1. Interpreter errors (as before)
+    if (exePath) {
+      const tmp = os.tmpdir();
+      const tmpFile = path.join(tmp, `ms_diag_${Date.now()}_${Math.random().toString(36).slice(2)}.ms`);
+      fs.writeFileSync(tmpFile, doc.getText());
+      const result = spawnSync(exePath, [tmpFile], { encoding: 'utf8' });
+      fs.unlinkSync(tmpFile);
+      let output = (result.stderr || '').trim();
+      if (!output) output = (result.stdout || '').trim();
+      // Look for lines like 'ERROR: invalid syntax at line X' or similar
+      const regex = /ERROR:.*at line (\d+)/gi;
+      let match;
+      while ((match = regex.exec(output))) {
+        const line = parseInt(match[1], 10) - 1;
+        const range = doc.lineAt(line).range;
+        diags.push(new vscode.Diagnostic(range, output, vscode.DiagnosticSeverity.Error));
+      }
+    }
+
+    // 2. Static analysis for unused/undefined/duplicate/type errors
+    const text = doc.getText();
+    const lines = text.split(/\r?\n/);
+    const varDefs = new Map(); // name -> {line, type}
+    const varUses = new Map(); // name -> [line,...]
+    const funcDefs = new Map(); // name -> {line, params, paramTypes}
+    const funcCalls = [];
+    const varRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=([^=].*)$/;
+    const funcRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=/;
+    const callRegex = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/g;
+    // Pass 1: find definitions
+    for (let i = 0; i < lines.length; ++i) {
+      const line = lines[i];
+      let m;
+      if ((m = funcRegex.exec(line))) {
+        const name = m[1];
+        const params = m[2].split(',').map(s => s.trim()).filter(Boolean);
+        if (funcDefs.has(name)) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Duplicate function definition: ${name}`, vscode.DiagnosticSeverity.Warning));
+        }
+        funcDefs.set(name, { line: i, params, paramTypes: params.map(_ => 'unknown') });
+        continue;
+      }
+      if ((m = varRegex.exec(line))) {
+        const name = m[1];
+        if (varDefs.has(name)) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Duplicate variable definition: ${name}`, vscode.DiagnosticSeverity.Warning));
+        }
+        varDefs.set(name, { line: i, type: 'unknown' });
+      }
+    }
+    // Pass 2: find usages
+    for (let i = 0; i < lines.length; ++i) {
+      const line = lines[i];
+      let m;
+      while ((m = callRegex.exec(line))) {
+        const name = m[1];
+        const args = m[2].split(',').map(s => s.trim()).filter(Boolean);
+        funcCalls.push({ name, args, line: i });
+        // Mark function as used
+        if (funcDefs.has(name)) {
+          funcDefs.get(name).used = true;
+        }
+      }
+      // Find variable usages (simple heuristic: any word that matches a var name)
+      for (const v of varDefs.keys()) {
+        const idx = line.indexOf(v);
+        if (idx !== -1 && !/^\s*#/.test(line)) {
+          if (!varUses.has(v)) varUses.set(v, []);
+          varUses.get(v).push(i);
+        }
+      }
+    }
+    // Pass 3: diagnostics
+    // Unused variables
+    for (const [v, def] of varDefs.entries()) {
+      const uses = varUses.get(v) || [];
+      if (uses.length <= 1) { // only defined, never used elsewhere
+        diags.push(new vscode.Diagnostic(new vscode.Range(def.line, 0, def.line, lines[def.line].length), `Variable '${v}' is defined but never used`, vscode.DiagnosticSeverity.Warning));
+      }
+    }
+    // Undefined variables (used but not defined)
+    for (const [v, uses] of varUses.entries()) {
+      if (!varDefs.has(v)) {
+        for (const line of uses) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(line, 0, line, lines[line].length), `Variable '${v}' is used but not defined`, vscode.DiagnosticSeverity.Warning));
+        }
+      }
+    }
+    // Type mismatches for built-in functions (if possible)
+    for (const call of funcCalls) {
+      const builtin = BUILTINS.find(b => b.name === call.name && b.kind === 'function');
+      if (builtin && builtin.parameters) {
+        if (call.args.length < builtin.parameters.length) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(call.line, 0, call.line, lines[call.line].length), `Function '${call.name}' expects at least ${builtin.parameters.length} arguments`, vscode.DiagnosticSeverity.Warning));
+        }
+      }
+      // User-defined function: check arity
+      if (funcDefs.has(call.name)) {
+        const def = funcDefs.get(call.name);
+        if (call.args.length !== def.params.length) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(call.line, 0, call.line, lines[call.line].length), `Function '${call.name}' expects ${def.params.length} arguments, got ${call.args.length}`, vscode.DiagnosticSeverity.Warning));
+        }
+      }
     }
     diagnostics.set(doc.uri, diags);
   }
@@ -307,24 +396,43 @@ export function activate(context: vscode.ExtensionContext) {
     }));
   }
 
-  // Signature help (basic, based on built-ins only)
+  // Signature help for built-ins and user-defined functions
   if (vscode.workspace.getConfiguration('ms').get<boolean>('enableSignatureHelp', true)) {
     context.subscriptions.push(vscode.languages.registerSignatureHelpProvider({ language: 'ms' }, {
-  provideSignatureHelp(doc: vscode.TextDocument, pos: vscode.Position): vscode.SignatureHelp | null {
-      const linePrefix = doc.lineAt(pos.line).text.slice(0, pos.character);
-      const m = /([A-Za-z_][A-Za-z0-9_]*)\s*\($/.exec(linePrefix);
-      if (!m) return null;
-      const name = m[1];
-      const b = BUILTINS.find(x => x.name === name && x.kind === 'function');
-      if (!b) return null;
-      const sig = new vscode.SignatureInformation(`${b.name}(${(b.parameters||[]).join(', ')})${b.returnType ? ': '+b.returnType : ''}`, new vscode.MarkdownString(b.documentation));
-      sig.parameters = (b.parameters||[]).map(p => new vscode.ParameterInformation(p));
-      const help = new vscode.SignatureHelp();
-      help.signatures = [sig];
-      help.activeSignature = 0;
-      help.activeParameter = 0;
-      return help;
-    }
+      provideSignatureHelp(doc: vscode.TextDocument, pos: vscode.Position): vscode.SignatureHelp | null {
+        const linePrefix = doc.lineAt(pos.line).text.slice(0, pos.character);
+        const m = /([A-Za-z_][A-Za-z0-9_]*)\s*\($/.exec(linePrefix);
+        if (!m) return null;
+        const name = m[1];
+        // 1. Check built-ins
+        const b = BUILTINS.find(x => x.name === name && x.kind === 'function');
+        if (b) {
+          const sig = new vscode.SignatureInformation(`${b.name}(${(b.parameters||[]).join(', ')})${b.returnType ? ': '+b.returnType : ''}`, new vscode.MarkdownString(b.documentation));
+          sig.parameters = (b.parameters||[]).map(p => new vscode.ParameterInformation(p));
+          const help = new vscode.SignatureHelp();
+          help.signatures = [sig];
+          help.activeSignature = 0;
+          help.activeParameter = 0;
+          return help;
+        }
+        // 2. Check user-defined functions in the document
+        // Match lines like: fname(x, y) = ...
+        const funcRegex = /^([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=/gm;
+        let match: RegExpExecArray | null;
+        while ((match = funcRegex.exec(doc.getText())) !== null) {
+          if (match[1] === name) {
+            const params = match[2].split(',').map(s => s.trim()).filter(Boolean);
+            const sig = new vscode.SignatureInformation(`${name}(${params.join(', ')})`, new vscode.MarkdownString('User-defined function'));
+            sig.parameters = params.map(p => new vscode.ParameterInformation(p));
+            const help = new vscode.SignatureHelp();
+            help.signatures = [sig];
+            help.activeSignature = 0;
+            help.activeParameter = 0;
+            return help;
+          }
+        }
+        return null;
+      }
     }, '('));
   }
 

@@ -14,6 +14,21 @@ export const BUILTINS: Builtin[] = [
   { kind: 'constant', name: 'j', detail: 'constant: complex', documentation: 'Imaginary unit j (2D imaginary)', returnType: 'complex' },
   { kind: 'constant', name: 'k', detail: 'constant: complex', documentation: 'Imaginary unit k (3D imaginary)', returnType: 'complex' },
 
+  // Additional math built-ins
+  { kind: 'function', name: 'abs', detail: 'fn(x: number|complex): number', documentation: 'Absolute value or modulus', parameters: ['x: number|complex'], returnType: 'number' },
+  { kind: 'function', name: 'sqrt', detail: 'fn(x: number|complex): number|complex', documentation: 'Square root', parameters: ['x: number|complex'], returnType: 'number|complex' },
+  { kind: 'function', name: 'exp', detail: 'fn(x: number|complex): number|complex', documentation: 'Exponential function e^x', parameters: ['x: number|complex'], returnType: 'number|complex' },
+  { kind: 'function', name: 'min', detail: 'fn(...args: number[]): number', documentation: 'Minimum of arguments', parameters: ['...args: number[]'], returnType: 'number' },
+  { kind: 'function', name: 'max', detail: 'fn(...args: number[]): number', documentation: 'Maximum of arguments', parameters: ['...args: number[]'], returnType: 'number' },
+  { kind: 'function', name: 'sum', detail: 'fn(arr: number[]): number', documentation: 'Sum of array elements', parameters: ['arr: number[]'], returnType: 'number' },
+  { kind: 'function', name: 'prod', detail: 'fn(arr: number[]): number', documentation: 'Product of array elements', parameters: ['arr: number[]'], returnType: 'number' },
+  { kind: 'function', name: 'real', detail: 'fn(z: complex): number', documentation: 'Real part of a complex number', parameters: ['z: complex'], returnType: 'number' },
+  { kind: 'function', name: 'imag', detail: 'fn(z: complex): number', documentation: 'Imaginary part of a complex number', parameters: ['z: complex'], returnType: 'number' },
+  { kind: 'function', name: 'conj', detail: 'fn(z: complex): complex', documentation: 'Complex conjugate', parameters: ['z: complex'], returnType: 'complex' },
+  { kind: 'function', name: 'arg', detail: 'fn(z: complex): number', documentation: 'Argument (angle) of a complex number', parameters: ['z: complex'], returnType: 'number' },
+  { kind: 'function', name: 're', detail: 'fn(z: complex): number', documentation: 'Alias for real(z)', parameters: ['z: complex'], returnType: 'number' },
+  { kind: 'function', name: 'im', detail: 'fn(z: complex): number', documentation: 'Alias for imag(z)', parameters: ['z: complex'], returnType: 'number' },
+
   { kind: 'function', name: 'sin', detail: 'fn(x: number): number', documentation: 'Sine in radians', parameters: ['x: number'], returnType: 'number' },
   { kind: 'function', name: 'cos', detail: 'fn(x: number): number', documentation: 'Cosine in radians', parameters: ['x: number'], returnType: 'number' },
   { kind: 'function', name: 'tan', detail: 'fn(x: number): number', documentation: 'Tangent in radians', parameters: ['x: number'], returnType: 'number' },

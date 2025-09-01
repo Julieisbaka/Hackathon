@@ -2,9 +2,16 @@
   "Function Definition": {
     "prefix": "fn",
     "body": [
-      "function ${1:name}(${2:params}) = ${3:body}" 
+      "${1:name}(${2:params}) = ${3:body}"
     ],
     "description": "Function definition"
+  },
+  "Anonymous Function": {
+    "prefix": "anonfn",
+    "body": [
+      "(${1:x}) => ${2:expr}"
+    ],
+    "description": "Anonymous function"
   },
   "Assignment": {
     "prefix": "let",
@@ -13,6 +20,20 @@
     ],
     "description": "Variable assignment"
   },
+  "Array": {
+    "prefix": "arr",
+    "body": [
+      "[${1:elements}]"
+    ],
+    "description": "Array or list"
+  },
+  "Matrix": {
+    "prefix": "mat",
+    "body": [
+      "[[${1:row1}], [${2:row2}]]"
+    ],
+    "description": "Matrix"
+  },
   "Print": {
     "prefix": "print",
     "body": [
@@ -20,18 +41,81 @@
     ],
     "description": "Print statement"
   },
-  "Derivative": {
-    "prefix": "deriv",
-    "body": [
-      "deriv(${1:f}, ${2:x})"
-    ],
-    "description": "Numerical derivative"
-  },
   "Log": {
     "prefix": "log",
     "body": [
       "log(\"${1:INFO}\", ${2:msg})"
     ],
     "description": "Log with level"
+  },
+  "Derivative": {
+    "prefix": "deriv",
+    "body": [
+      "d/d${1:x} ${2:f}(${3:x})"
+    ],
+    "description": "Derivative"
+  },
+  "Prime Derivative": {
+    "prefix": "prime",
+    "body": [
+      "${1:f}'(${2:x})"
+    ],
+    "description": "Prime notation for derivative"
+  },
+  "Import": {
+    "prefix": "import",
+    "body": [
+      "import \"${1:file.ms}\""
+    ],
+    "description": "Import another MS file"
+  },
+  "Docstring": {
+    "prefix": "doc",
+    "body": [
+      "\"\"\"", "${1:Documentation}", "\"\"\""
+    ],
+    "description": "Docstring block"
+  },
+  "Comment": {
+    "prefix": "#",
+    "body": [
+      "# ${1:comment}"
+    ],
+    "description": "Single-line comment"
+  },
+  "Trig Function": {
+    "prefix": "trig",
+    "body": [
+      "${1:func}(${2:x})"
+    ],
+    "description": "Trig or hyperbolic function"
+  },
+  "Error Function": {
+    "prefix": "erf",
+    "body": [
+      "erf(${1:x})"
+    ],
+    "description": "Error function"
+  },
+  "Complementary Error Function": {
+    "prefix": "erfc",
+    "body": [
+      "erfc(${1:x})"
+    ],
+    "description": "Complementary error function"
+  },
+  "Natural Log": {
+    "prefix": "ln",
+    "body": [
+      "ln(${1:x})"
+    ],
+    "description": "Natural logarithm"
+  },
+  "Base 10 Log": {
+    "prefix": "log10",
+    "body": [
+      "log(${1:x})"
+    ],
+    "description": "Base 10 logarithm"
   }
 }

@@ -56,7 +56,7 @@
       "patterns": [
         {
           "name": "support.function.ms",
-          "match": "\\b(sin|cos|tan|sec|csc|cot|asin|acos|atan|asec|acsc|acot|sinh|cosh|tanh|sech|csch|coth|asinh|acosh|atanh|asech|acsch|acoth|erf|erfc|ln|log)\\b"
+          "match": "\\b(sin|cos|tan|sec|csc|cot|asin|acos|atan|asec|acsc|acot|sinh|cosh|tanh|sech|csch|coth|asinh|acosh|atanh|asech|acsch|acoth|erf|erfc|ln|log|abs|sqrt|exp|min|max|sum|prod|real|imag|conj|arg|re|im)\\b"
         },
         {
           "name": "entity.name.function.ms",
