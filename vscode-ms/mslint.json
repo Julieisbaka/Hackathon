@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "pattern": "^foo$",
+      "message": "Usage of variable 'foo' is discouraged.",
+      "severity": "warning"
+    },
+    {
+      "pattern": "bar",
+      "message": "Avoid using 'bar' in variable names.",
+      "severity": "info"
+    }
+  ]
+}

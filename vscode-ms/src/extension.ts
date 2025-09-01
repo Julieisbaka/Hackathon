@@ -29,19 +29,36 @@
       }
     }
 
-    // 2. Static analysis for unused/undefined/duplicate/type errors
+    // 2. Advanced static analysis: type propagation, control flow, custom linting
     const text = doc.getText();
     const lines = text.split(/\r?\n/);
-    const varDefs = new Map(); // name -> {line, type}
+    const varDefs = new Map(); // name -> {line, type, shadowed, scope}
     const varUses = new Map(); // name -> [line,...]
-    const funcDefs = new Map(); // name -> {line, params, paramTypes}
+    const funcDefs = new Map(); // name -> {line, params, paramTypes, returnType, used, scope}
     const funcCalls = [];
+    const scopes = [{}]; // stack of {vars: Set, parent: number}
     const varRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=([^=].*)$/;
     const funcRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=/;
     const callRegex = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/g;
-    // Pass 1: find definitions
+    let unreachable = false;
+    // Load custom lint rules
+    let customRules = [];
+    try {
+      const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (ws) {
+        const rulePath = path.join(ws, 'vscode-ms', 'mslint.json');
+        if (fs.existsSync(rulePath)) {
+          customRules = JSON.parse(fs.readFileSync(rulePath, 'utf8')).rules || [];
+        }
+      }
+    } catch {}
+    // Pass 1: find definitions, infer types, build scopes
     for (let i = 0; i < lines.length; ++i) {
       const line = lines[i];
+      if (/^\s*#/.test(line)) continue;
+      if (unreachable && line.trim()) {
+        diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Unreachable code after return/exit`, vscode.DiagnosticSeverity.Warning));
+      }
       let m;
       if ((m = funcRegex.exec(line))) {
         const name = m[1];
@@ -49,18 +66,48 @@
         if (funcDefs.has(name)) {
           diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Duplicate function definition: ${name}`, vscode.DiagnosticSeverity.Warning));
         }
-        funcDefs.set(name, { line: i, params, paramTypes: params.map(_ => 'unknown') });
+        funcDefs.set(name, { line: i, params, paramTypes: params.map(_ => 'unknown'), returnType: 'unknown', used: false, scope: scopes.length });
+        // New function scope
+        scopes.push({});
+        for (const p of params) {
+          varDefs.set(p, { line: i, type: 'unknown', shadowed: false, scope: scopes.length });
+        }
         continue;
       }
       if ((m = varRegex.exec(line))) {
         const name = m[1];
-        if (varDefs.has(name)) {
-          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Duplicate variable definition: ${name}`, vscode.DiagnosticSeverity.Warning));
+        // Shadowing check
+        if (varDefs.has(name) && varDefs.get(name).scope === scopes.length) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Variable '${name}' shadows previous definition in this scope`, vscode.DiagnosticSeverity.Warning));
         }
-        varDefs.set(name, { line: i, type: 'unknown' });
+        // Type inference (number, string, array, boolean, function, unknown)
+        let rhs = m[2].trim();
+        let type = 'unknown';
+        if (/^\d+(\.\d+)?$/.test(rhs)) type = 'number';
+        else if (/^".*"$/.test(rhs)) type = 'string';
+        else if (/^\[.*\]$/.test(rhs)) type = 'array';
+        else if (/^(true|false)$/.test(rhs)) type = 'boolean';
+        else if (/^[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)$/.test(rhs)) type = 'function';
+        varDefs.set(name, { line: i, type, shadowed: varDefs.has(name), scope: scopes.length });
+      }
+      // Unreachable code detection (simple: after 'return' or 'exit')
+      if (/\b(return|exit)\b/.test(line)) unreachable = true;
+      // Assignment in conditionals (e.g., if (x = 2))
+      if (/\{[^}]*=[^=][^}]*\}/.test(line)) {
+        diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Suspicious assignment in condition; did you mean '=='?`, vscode.DiagnosticSeverity.Warning));
+      }
+      // Empty function body
+      if (/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=\s*$/.test(line)) {
+        diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Function '${RegExp.$1}' has an empty body`, vscode.DiagnosticSeverity.Warning));
+      }
+      // Custom linting rules
+      for (const rule of customRules) {
+        if (rule.pattern && new RegExp(rule.pattern).test(line)) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), rule.message || 'Custom lint rule triggered', rule.severity === 'info' ? vscode.DiagnosticSeverity.Information : vscode.DiagnosticSeverity.Warning));
+        }
       }
     }
-    // Pass 2: find usages
+    // Pass 2: usages, type propagation, control flow
     for (let i = 0; i < lines.length; ++i) {
       const line = lines[i];
       let m;
@@ -71,6 +118,22 @@
         // Mark function as used
         if (funcDefs.has(name)) {
           funcDefs.get(name).used = true;
+        }
+        // Undefined function
+        if (!funcDefs.has(name) && !BUILTINS.find(b => b.name === name && b.kind === 'function')) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Function '${name}' is called but not defined`, vscode.DiagnosticSeverity.Warning));
+        }
+        // Type propagation for function calls (very basic)
+        if (funcDefs.has(name)) {
+          const def = funcDefs.get(name);
+          for (let j = 0; j < def.params.length && j < args.length; ++j) {
+            let argType = 'unknown';
+            if (/^\d+(\.\d+)?$/.test(args[j])) argType = 'number';
+            else if (/^".*"$/.test(args[j])) argType = 'string';
+            else if (/^\[.*\]$/.test(args[j])) argType = 'array';
+            else if (/^(true|false)$/.test(args[j])) argType = 'boolean';
+            def.paramTypes[j] = argType;
+          }
         }
       }
       // Find variable usages (simple heuristic: any word that matches a var name)
@@ -105,12 +168,152 @@
         if (call.args.length < builtin.parameters.length) {
           diags.push(new vscode.Diagnostic(new vscode.Range(call.line, 0, call.line, lines[call.line].length), `Function '${call.name}' expects at least ${builtin.parameters.length} arguments`, vscode.DiagnosticSeverity.Warning));
         }
+        // Type check for number/string/array if possible
+        for (let i = 0; i < builtin.parameters.length && i < call.args.length; ++i) {
+          const paramType = builtin.parameters[i].split(':')[1]?.trim();
+          const arg = call.args[i];
+          let argType = 'unknown';
+          if (/^\d+(\.\d+)?$/.test(arg)) argType = 'number';
+          else if (/^".*"$/.test(arg)) argType = 'string';
+          else if (/^\[.*\]$/.test(arg)) argType = 'array';
+      // 2. Advanced static analysis: type propagation, control flow, custom linting
+      // Variable state tracking and dead code detection (simple CFG)
+      const text = doc.getText();
+      const lines = text.split(/\r?\n/);
+      const varDefs = new Map(); // name -> {line, type, shadowed, scope}
+      const varUses = new Map(); // name -> [line,...]
+      const funcDefs = new Map(); // name -> {line, params, paramTypes, returnType, used, scope}
+      const funcCalls = [];
+      const branchStack = [];
+      let unreachable = false;
+    let branchVars = [{ defined: new Set(), used: new Set() }]; // stack of {defined:Set, used:Set}
+      // ...existing regexes and custom lint rule loading...
+      const varRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=([^=].*)$/;
+      const funcRegex = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=/;
+      const callRegex = /([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/g;
+      let customRules = [];
+      try {
+        const ws = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (ws) {
+          const rulePath = path.join(ws, 'vscode-ms', 'mslint.json');
+          if (fs.existsSync(rulePath)) {
+            customRules = JSON.parse(fs.readFileSync(rulePath, 'utf8')).rules || [];
+          }
+        }
+      } catch {}
+      // Pass 1: build branch/CFG and track variable state
+      for (let i = 0; i < lines.length; ++i) {
+        const line = lines[i];
+        if (/^\s*#/.test(line)) continue;
+        // Enter/exit branches (if/else/while/for)
+        if (/\bif\b/.test(line) || /\belse\b/.test(line) || /\bwhile\b/.test(line) || /\bfor\b/.test(line)) {
+          branchStack.push(i);
+          branchVars.push({ defined: new Set(), used: new Set() });
+        }
+        if (/\}/.test(line) && branchStack.length > 1) {
+          // Merge branch variable state
+          const last = branchVars.pop();
+          const prev = branchVars[branchVars.length-1];
+          for (const v of last.defined) prev.defined.add(v);
+          for (const v of last.used) prev.used.add(v);
+          branchStack.pop();
+        }
+        if (unreachable && line.trim()) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Unreachable code after return/exit`, vscode.DiagnosticSeverity.Warning));
+        }
+        let m;
+        if ((m = funcRegex.exec(line))) {
+          const name = m[1];
+          const params = m[2].split(',').map(s => s.trim()).filter(Boolean);
+          if (funcDefs.has(name)) {
+            diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Duplicate function definition: ${name}`, vscode.DiagnosticSeverity.Warning));
+          }
+          funcDefs.set(name, { line: i, params, paramTypes: params.map(_ => 'unknown'), returnType: 'unknown', used: false, scope: branchStack.length });
+          continue;
+        }
+        if ((m = varRegex.exec(line))) {
+          const name = m[1];
+          // Shadowing check
+          if (varDefs.has(name) && varDefs.get(name).scope === branchStack.length) {
+            diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Variable '${name}' shadows previous definition in this scope`, vscode.DiagnosticSeverity.Warning));
+          }
+          // Type inference (number, string, array, boolean, function, unknown)
+          let rhs = m[2].trim();
+          let type = 'unknown';
+          if (/^\d+(\.\d+)?$/.test(rhs)) type = 'number';
+          else if (/^".*"$/.test(rhs)) type = 'string';
+          else if (/^\[.*\]$/.test(rhs)) type = 'array';
+          else if (/^(true|false)$/.test(rhs)) type = 'boolean';
+          else if (/^[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)$/.test(rhs)) type = 'function';
+          varDefs.set(name, { line: i, type, shadowed: varDefs.has(name), scope: branchStack.length });
+          branchVars[branchVars.length-1].defined.add(name);
+        }
+        // Unreachable code detection (simple: after 'return' or 'exit')
+        if (/\b(return|exit)\b/.test(line)) unreachable = true;
+        // Assignment in conditionals (e.g., if (x = 2))
+        if (/\{[^}]*=[^=][^}]*\}/.test(line)) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Suspicious assignment in condition; did you mean '=='?`, vscode.DiagnosticSeverity.Warning));
+        }
+        // Empty function body
+        if (/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*=\s*$/.test(line)) {
+          diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), `Function '${RegExp.$1}' has an empty body`, vscode.DiagnosticSeverity.Warning));
+        }
+        // Custom linting rules
+        for (const rule of customRules) {
+          if (rule.pattern && new RegExp(rule.pattern).test(line)) {
+            diags.push(new vscode.Diagnostic(new vscode.Range(i, 0, i, line.length), rule.message || 'Custom lint rule triggered', rule.severity === 'info' ? vscode.DiagnosticSeverity.Information : vscode.DiagnosticSeverity.Warning));
+          }
+        }
+        // Track variable usage in branch
+        for (const v of varDefs.keys()) {
+          const idx = line.indexOf(v);
+          if (idx !== -1 && !/^\s*#/.test(line)) {
+            if (!varUses.has(v)) varUses.set(v, []);
+            varUses.get(v).push(i);
+            branchVars[branchVars.length-1].used.add(v);
+          }
+        }
       }
-      // User-defined function: check arity
+      // After all lines, check for variables only defined in some branches
+      for (const v of varDefs.keys()) {
+        let definedEverywhere = true;
+        for (const branch of branchVars) {
+          if (!branch.defined.has(v) && branch.used.has(v)) definedEverywhere = false;
+        }
+        if (!definedEverywhere) {
+          for (const branch of branchVars) {
+            if (branch.used.has(v) && !branch.defined.has(v)) {
+              diags.push(new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), `Variable '${v}' may be used before assignment in some branches`, vscode.DiagnosticSeverity.Warning));
+            }
+          }
+        }
+      }
+      // ...rest of advanced static analysis (type checks, function calls, etc.)...
+          else if (/^(true|false)$/.test(arg)) argType = 'boolean';
+          if (paramType && argType !== 'unknown' && paramType !== argType && paramType !== 'number|complex') {
+            diags.push(new vscode.Diagnostic(new vscode.Range(call.line, 0, call.line, lines[call.line].length), `Type mismatch: parameter ${i+1} of '${call.name}' expects ${paramType}, got ${argType}`, vscode.DiagnosticSeverity.Warning));
+          }
+        }
+      }
+      // User-defined function: check arity and types
       if (funcDefs.has(call.name)) {
         const def = funcDefs.get(call.name);
         if (call.args.length !== def.params.length) {
           diags.push(new vscode.Diagnostic(new vscode.Range(call.line, 0, call.line, lines[call.line].length), `Function '${call.name}' expects ${def.params.length} arguments, got ${call.args.length}`, vscode.DiagnosticSeverity.Warning));
+        }
+        // Type check for user-defined functions (if types can be inferred)
+        for (let i = 0; i < def.params.length && i < call.args.length; ++i) {
+          const param = def.params[i];
+          const paramType = def.paramTypes[i];
+          const arg = call.args[i];
+          let argType = 'unknown';
+          if (/^\d+(\.\d+)?$/.test(arg)) argType = 'number';
+          else if (/^".*"$/.test(arg)) argType = 'string';
+          else if (/^\[.*\]$/.test(arg)) argType = 'array';
+          else if (/^(true|false)$/.test(arg)) argType = 'boolean';
+          if (paramType !== 'unknown' && argType !== 'unknown' && paramType !== argType) {
+            diags.push(new vscode.Diagnostic(new vscode.Range(call.line, 0, call.line, lines[call.line].length), `Type mismatch: parameter ${i+1} of '${call.name}' expects ${paramType}, got ${argType}`, vscode.DiagnosticSeverity.Warning));
+          }
         }
       }
     }
