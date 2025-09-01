@@ -91,3 +91,7 @@ Contributions are welcome! Please open issues or pull requests on [GitHub](https
 ## License
 
 This project is licensed under the MIT License. See [LICENSE.md](./vscode-ms/LICENSE.md) for details.
+
+## Note
+
+The code blocks in this file and the `Syntax.md` file are not highlighted with the actual highlighter becouse github does not allow codeblocks for custom languages.
