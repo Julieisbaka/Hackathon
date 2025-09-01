@@ -36,6 +36,7 @@ pub enum TokenKind {
     NotEqual,   // !=
     Semicolon,  // ;
     Newline,    // \n
+    Mod,
     EOF,
     Unknown,
 }
@@ -121,8 +122,12 @@ pub fn tokenize(input: &str) -> Vec<Token> {
                     break;
                 }
             }
-            // TODO: Check for keywords, functions, constants
-            (&mut tokens).push(Token { kind: TokenKind::Identifier, lexeme: ident });
+            // Recognize 'mod' as a special infix operator
+            if ident == "mod" {
+                (&mut tokens).push(Token { kind: TokenKind::Mod, lexeme: ident });
+            } else {
+                (&mut tokens).push(Token { kind: TokenKind::Identifier, lexeme: ident });
+            }
         } else {
             // Single- and multi-character tokens and operators
             match c {

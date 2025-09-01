@@ -184,6 +184,7 @@ impl<'a> Parser<'a> {
                 TokenKind::Caret => (7, 6, Some(BinaryOpKind::Pow)),
                 TokenKind::Star => (5, 6, Some(BinaryOpKind::Mul)),
                 TokenKind::Slash => (5, 6, Some(BinaryOpKind::Div)),
+                TokenKind::Mod => (5, 6, Some(BinaryOpKind::Mod)),
                 TokenKind::Plus => (3, 4, Some(BinaryOpKind::Add)),
                 TokenKind::Minus => (3, 4, Some(BinaryOpKind::Sub)),
                 TokenKind::GreaterEq => (2, 3, Some(BinaryOpKind::Gte)),
@@ -207,6 +208,31 @@ impl<'a> Parser<'a> {
     fn parse_prefix(&mut self) -> Option<AstNode> {
         // derivative operator: d^n/dx^n expr
         if let Some(Token { kind: TokenKind::Identifier, lexeme }) = self.peek() {
+            if lexeme == "lim" {
+                // lim {var -> val} expr
+                self.next(); // consume 'lim'
+                if !self.match_kind(TokenKind::LBrace) {
+                    return Some(AstNode::Error("expected '{{' after lim".to_string()));
+                }
+                // parse var -> val
+                let var = match self.peek() {
+                    Some(Token { kind: TokenKind::Identifier, lexeme }) => {
+                        let v = lexeme.clone();
+                        self.next();
+                        v
+                    },
+                    _ => return Some(AstNode::Error("expected variable in lim".to_string())),
+                };
+                if !self.match_kind(TokenKind::Minus) || !self.match_kind(TokenKind::Greater) {
+                    return Some(AstNode::Error("expected '->' in lim".to_string()));
+                }
+                let to = self.parse_expression(0)?;
+                if !self.match_kind(TokenKind::RBrace) {
+                    return Some(AstNode::Error("expected '}}' after lim target".to_string()));
+                }
+                let expr = self.parse_expression(0)?;
+                return Some(AstNode::Lim { var, to: Box::new(to), expr: Box::new(expr) });
+            }
             if lexeme == "d" {
                 // consume 'd'
                 self.next();

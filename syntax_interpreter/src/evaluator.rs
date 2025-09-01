@@ -19,10 +19,11 @@ pub struct Function {
     pub body: AstNode,
 }
 
-#[derive(Default)]
+
+#[derive(Default, Clone)]
 pub struct Env {
-    vars: HashMap<String, Value>,
-    funcs: HashMap<String, Function>,
+    pub vars: HashMap<String, Value>,
+    pub funcs: HashMap<String, Function>,
 }
 
 impl Env {
@@ -103,9 +104,40 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
                 BinaryOpKind::Mul => lift_mul(l, r),
                 BinaryOpKind::Div => lift_bin(l, r, |x,y| x/y),
                 BinaryOpKind::Pow => lift_bin(l, r, |x,y| x.powf(y)),
+                BinaryOpKind::Mod => lift_bin(l, r, |x,y| x % y),
                 BinaryOpKind::Eq | BinaryOpKind::NotEq | BinaryOpKind::Gt | BinaryOpKind::Lt | BinaryOpKind::Gte | BinaryOpKind::Lte =>
                     compare(op.clone(), l, r),
             }
+        }
+        AstNode::Lim { var, to, expr } => {
+            // Numeric limit: lim {var -> val} expr
+            // Use symmetric difference quotient with decreasing h
+            let var_name = var.clone();
+            let to_val = match eval(to, env) { Value::Number(n) => n, _ => return Value::Unit };
+            let mut last = std::f64::NAN;
+            let mut h = 1e-3;
+            let mut stable_count = 0;
+            for _ in 0..20 {
+                let mut env1 = env.clone();
+                env1.vars.insert(var_name.clone(), Value::Number(to_val + h));
+                let up = eval(expr, &mut env1);
+                let mut env2 = env.clone();
+                env2.vars.insert(var_name.clone(), Value::Number(to_val - h));
+                let down = eval(expr, &mut env2);
+                let v = match (up, down) {
+                    (Value::Number(a), Value::Number(b)) => 0.5 * (a + b),
+                    _ => return Value::Unit,
+                };
+                if (v - last).abs() < 1e-8 {
+                    stable_count += 1;
+                    if stable_count > 2 { return Value::Number(v); }
+                } else {
+                    stable_count = 0;
+                }
+                last = v;
+                h *= 0.5;
+            }
+            Value::Number(last)
         }
         AstNode::Array(items) => Value::Array((&**items).iter().map(|e: &AstNode| -> Value { eval(e, env) }).collect()),
         AstNode::FunctionDef { name, params, body } => {
@@ -260,6 +292,72 @@ fn call_builtin(name: &str, args: &[Value]) -> Option<Value> {
                 }
             } else {
                 Some(Value::Str("ERROR: deriv: first argument must be a function".to_string()))
+            }
+        },
+        // New built-in functions
+        "clamp" => {
+            // clamp(x, min, max): clamp x between min and max
+            if args.len() < 3 {
+                return Some(Value::Str("ERROR: clamp expects 3 arguments (x, min, max)".to_string()));
+            }
+            let x = match &args[0] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+            let min = match &args[1] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+            let max = match &args[2] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+            Some(Value::Number(x.max(min).min(max)))
+        },
+        "round" => {
+            args.get(0).and_then(|v| if let Value::Number(x) = v { Some(Value::Number(x.round())) } else { None })
+        },
+        "trunc" => {
+            args.get(0).and_then(|v| if let Value::Number(x) = v { Some(Value::Number(x.trunc())) } else { None })
+        },
+        "floor" => {
+            args.get(0).and_then(|v| if let Value::Number(x) = v { Some(Value::Number(x.floor())) } else { None })
+        },
+        "ceil" => {
+            args.get(0).and_then(|v| if let Value::Number(x) = v { Some(Value::Number(x.ceil())) } else { None })
+        },
+        "rand" => {
+            use rand::prelude::*;
+            let mut rng = rand::rng();
+            if args.len() == 0 {
+                // rand() -> [0,1)
+                Some(Value::Number(rng.random::<f64>()))
+            } else if args.len() == 2 {
+                // rand(min, max) -> [min, max)
+                let min = match &args[0] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+                let max = match &args[1] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+                Some(Value::Number(rng.random_range(min..max)))
+            } else {
+                Some(Value::Str("ERROR: rand expects 0 or 2 arguments (min, max)".to_string()))
+            }
+        },
+        "int" => {
+            // int(f, a, b, [n]): numeric integration of f(x) from a to b, n intervals (default 1000)
+            if args.len() < 3 {
+                return Some(Value::Str("ERROR: int expects at least 3 arguments (function, a, b, [n])".to_string()));
+            }
+            let f = &args[0];
+            let a = match &args[1] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+            let b = match &args[2] { Value::Number(n) => *n, _ => return Some(Value::Unit) };
+            let n = if args.len() > 3 {
+                match &args[3] { Value::Number(n) => *n as usize, _ => 1000 }
+            } else { 1000 };
+            if let Value::Function(func) = f {
+                let param = func.params.get(0).cloned().unwrap_or("x".to_string());
+                let mut env = Env::with_builtins();
+                let h = (b - a) / n as f64;
+                let mut sum = 0.0;
+                for i in 0..n {
+                    let x = a + i as f64 * h;
+                    env.vars.insert(param.clone(), Value::Number(x));
+                    if let Value::Number(y) = eval(&func.body, &mut env) {
+                        sum += y;
+                    }
+                }
+                Some(Value::Number(sum * h))
+            } else {
+                Some(Value::Str("ERROR: int: first argument must be a function".to_string()))
             }
         },
         "sin" => return (&map1)(f64::sin),

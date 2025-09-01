@@ -46,6 +46,11 @@ pub enum AstNode {
         var: Option<String>,
         order: usize,
     },
+    Lim {
+        var: String,
+        to: Box<AstNode>,
+        expr: Box<AstNode>,
+    },
     Import(String),
     Print(Vec<AstNode>),
     Log(Vec<AstNode>),
@@ -73,4 +78,5 @@ pub enum BinaryOpKind {
     Lt = 8,
     Gte = 9,
     Lte = 10,
+    Mod = 11,
 }
