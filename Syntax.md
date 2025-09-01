@@ -27,7 +27,7 @@ f(x) = x^2 {x > 0}
 
 - **Comparison:**
   - `=` inside `{}` for equality (e.g. `{x = 2}`)
-  - `!` for negation (e.g. `{!x = 2}` means x ≠ 2)
+  - `!` for negation (e.g. `{x != 2}` means x ≠ 2)
   - `>`, `<`, `>=`, `<=` for inequalities
 - **Arithmetic:**
   - `+`, `-`, `*`, `/`, `^` for addition, subtraction, multiplication, division, exponentiation
