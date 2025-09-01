@@ -49,6 +49,7 @@ pub enum AstNode {
     Import(String),
     Print(Vec<AstNode>),
     Log(Vec<AstNode>),
+    Error(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]

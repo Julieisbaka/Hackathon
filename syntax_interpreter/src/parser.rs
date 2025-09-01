@@ -22,10 +22,7 @@ pub fn parse(tokens: &[Token]) -> AstNode {
         if matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::Semicolon)) {
             parser.pos += 1;
         }
-        // If not a semicolon, but not EOF, skip invalid token
-        else if !matches!(parser.peek().map(|t| &t.kind), Some(TokenKind::EOF)) {
-            parser.pos += 1;
-        }
+        // If not a semicolon or EOF, do not advance; let the next loop handle the next statement
     }
     AstNode::Program(stmts)
 }
@@ -75,14 +72,24 @@ impl<'a> Parser<'a> {
             if matches!(self.lookahead_kind(1), Some(TokenKind::LParen)) {
                 self.next(); // name
                 self.next(); // (
-                let params: Vec<String> = self.parse_params()?;
-                self.expect(TokenKind::Assign)?;
-                let mut expr: AstNode = self.parse_expression(0)?;
+                let params = self.parse_params();
+                if params.is_none() {
+                    return Some(AstNode::Error("invalid syntax".to_string()));
+                }
+                let params = params.unwrap();
+                if !self.match_kind(TokenKind::Assign) {
+                    return Some(AstNode::Error("invalid syntax".to_string()));
+                }
+                // Parse only a single expression for the function body
+                let expr = self.parse_expression(0).unwrap_or(AstNode::Empty);
+                let mut expr = expr;
                 // Check for trailing {condition} after function body
                 if self.match_kind(TokenKind::LBrace) {
-                    let cond: AstNode = self.parse_condition_expression(0)?;
-                    self.expect(TokenKind::RBrace)?;
-                    expr = AstNode::Conditional { condition: Box::new(cond), body: Box::new(expr) };
+                    let cond = self.parse_condition_expression(0);
+                    if cond.is_none() || !self.match_kind(TokenKind::RBrace) {
+                        return Some(AstNode::Error("invalid syntax".to_string()));
+                    }
+                    expr = AstNode::Conditional { condition: Box::new(cond.unwrap()), body: Box::new(expr) };
                 }
                 return Some(AstNode::FunctionDef { name, params, body: Box::new(expr) });
             }
@@ -111,7 +118,9 @@ impl<'a> Parser<'a> {
                 _ => return None,
             }
             if self.match_kind(TokenKind::Comma) { continue; }
-            self.expect(TokenKind::RParen)?;
+            if !self.match_kind(TokenKind::RParen) {
+                return None;
+            }
             break;
         }
         Some(params)
@@ -137,6 +146,35 @@ impl<'a> Parser<'a> {
         lhs = self.parse_postfix(lhs)?;
 
         loop {
+            // Stop implicit multiplication and expression parsing at statement boundaries
+            match self.peek() {
+                Some(Token { kind: TokenKind::Semicolon, .. }) |
+                Some(Token { kind: TokenKind::EOF, .. }) => break,
+                _ => {}
+            }
+
+            // Check for implicit multiplication
+            let implicit_mul = match self.peek() {
+                Some(Token { kind: TokenKind::Identifier, .. })
+                | Some(Token { kind: TokenKind::Number, .. })
+                | Some(Token { kind: TokenKind::LParen, .. })
+                | Some(Token { kind: TokenKind::LBracket, .. }) => {
+                    match &lhs {
+                        AstNode::Number(_) | AstNode::Variable(_) | AstNode::Str(_) | AstNode::FunctionCall { .. } | AstNode::Array(_) | AstNode::UnaryOp { .. } | AstNode::BinaryOp { .. } => true,
+                        _ => false,
+                    }
+                }
+                _ => false,
+            };
+            if implicit_mul {
+                // Precedence for implicit multiplication is the same as explicit '*'
+                let rbp = 6;
+                if 5 < min_bp { break; }
+                let rhs = self.parse_expression(rbp)?;
+                lhs = AstNode::BinaryOp { op: BinaryOpKind::Mul, left: Box::new(lhs), right: Box::new(rhs) };
+                continue;
+            }
+
             let op: TokenKind = match self.peek() {
                 Some(t) => (&(*t).kind).clone(),
                 None => break,

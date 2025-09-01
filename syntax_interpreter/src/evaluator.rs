@@ -44,6 +44,10 @@ impl Env {
 
 pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
     match ast {
+        AstNode::Error(msg) => {
+            eprintln!("ERROR: {}", msg);
+            Value::Unit
+        }
         AstNode::Program(stmts) => {
             // First pass: register all function definitions
             for stmt in stmts {
@@ -51,6 +55,7 @@ pub fn eval(ast: &AstNode, env: &mut Env) -> Value {
                     eval(stmt, env);
                 }
             }
+            // Debug: print all registered function names
             // Second pass: evaluate all non-function-def statements
             let mut last: Value = Value::Unit;
             for stmt in stmts {
@@ -208,6 +213,7 @@ fn call_function(name: &str, args: &[Value], env: &mut Env) -> Value {
             if let Some(v) = args.get(i) { (&mut local.vars).insert(p.clone(), v.clone()); }
         }
         return eval(&f.body, &mut local);
+    } else {
     }
     // built-ins
     if let Some(b) = call_builtin(name, args) { return b; }
@@ -437,7 +443,7 @@ fn matrix_mul(a: &Vec<Vec<f64>>, b: &Vec<Vec<f64>>) -> Option<Vec<Vec<f64>>> {
     Some(out)
 }
 
-fn display_value(v: &Value) -> String {
+pub fn display_value(v: &Value) -> String {
     match v {
         Value::Number(n) => n.to_string(),
         Value::Complex(c) => format!("{}+{}i", c.re, c.im),
